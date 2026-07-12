@@ -66,21 +66,72 @@ class RawManifest:
 
 
 def _read_manifest(file_path: str) -> RawManifest:
-    """Read and cryptographically validate the embedded C2PA manifest, if any.
-
-    TODO(week 1): replace the body below with real c2pa-python calls:
-        reader = c2pa.Reader(file_path)
-        manifest = reader.get_active_manifest()
-        ... verify signature against trust list, recompute hashes ...
-    Left unimplemented on purpose — this is pure I/O + library plumbing, not decision
-    logic, and shouldn't block reviewing `route()` below.
-    """
+    """Read and cryptographically validate the embedded C2PA manifest, if any."""
     if not _C2PA_AVAILABLE:
         raise RuntimeError(
             "c2pa-python is not installed. Run `pip install -r requirements.txt`, "
             "or call route() directly with a hand-built RawManifest for testing."
         )
-    raise NotImplementedError("Wire up c2pa-python's Reader API here.")
+    
+    try:
+        reader = c2pa.Reader.try_create(file_path)
+    except Exception:
+        # Invalid file format or completely unreadable
+        return RawManifest(has_manifest=False)
+
+    if reader is None:
+        return RawManifest(has_manifest=False)
+
+    manifest_data = reader.get_active_manifest() or {}
+    val_results = reader.get_validation_results() or {}
+    
+    # Defaults assuming it parsed
+    signature_valid = True
+    hashes_match = True
+    failed_assertion = None
+    
+    # Any validation errors present?
+    errors = val_results.get("errors", [])
+    if errors:
+        for err in errors:
+            code = err.get("code", "")
+            if "signature" in code:
+                signature_valid = False
+            elif "hash" in code or "hashedURI.mismatch" in code:
+                hashes_match = False
+                failed_assertion = err.get("url")
+
+    # Extract assertions
+    assertions_list = manifest_data.get("assertions", [])
+    assertions_urls = [a.get("url", "") for a in assertions_list]
+    
+    # Look for digitalSourceType
+    digital_source_type = None
+    for assertion in assertions_list:
+        # Typically found in c2pa.actions
+        if "c2pa.actions" in assertion.get("label", ""):
+            actions = assertion.get("data", {}).get("actions", [])
+            for action_dict in actions:
+                dst = action_dict.get("digitalSourceType")
+                if dst:
+                    # Usually a URI, grab the last part e.g. "trainedAlgorithmicMedia"
+                    digital_source_type = str(dst).split("/")[-1]
+
+    # Look for signer info
+    signer = None
+    sig_info = manifest_data.get("signature_info", {})
+    if sig_info:
+        signer = sig_info.get("issuer")
+
+    return RawManifest(
+        has_manifest=True,
+        signature_valid=signature_valid,
+        hashes_match=hashes_match,
+        digital_source_type=digital_source_type,
+        signer=signer,
+        assertions=assertions_urls,
+        failed_assertion=failed_assertion,
+    )
 
 
 def route(raw: RawManifest) -> ProvenanceBlock:

@@ -12,3 +12,8 @@ torch
 
 # Layer 2 (peachcheck/layers/measurement.py) — OCR for disclosure text bounding boxes
 pytesseract
+
+# Week 1 - FastAPI Walking Skeleton
+fastapi
+uvicorn
+python-multipart
