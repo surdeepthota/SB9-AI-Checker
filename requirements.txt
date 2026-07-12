@@ -1,0 +1,14 @@
+# Layer 1 (peachcheck/layers/provenance.py) — C2PA manifest reading + signature verification
+c2pa-python
+
+# Layer 3 (peachcheck/layers/forensics.py) — ELA + FFT signals (image load, array math)
+Pillow
+numpy
+
+# Layer 3 (peachcheck/layers/forensics.py) — pretrained deepfake/AI-image classifier
+# (pretrained weights only; the model is never trained in-house, see check_ml_classifier)
+transformers
+torch
+
+# Layer 2 (peachcheck/layers/measurement.py) — OCR for disclosure text bounding boxes
+pytesseract
