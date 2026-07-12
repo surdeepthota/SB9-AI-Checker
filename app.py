@@ -4,12 +4,14 @@ import shutil
 import tempfile
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from peachcheck.pipeline import run_pipeline
 from PIL import Image, ExifTags
 
 app = FastAPI(title="PeachCheck Walking Skeleton API")
 
-# Allow UI to connect later
+# Allow UI to connect during local dev
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,6 +19,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve static frontend in production
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(STATIC_DIR):
+    app.mount("/assets", StaticFiles(directory=os.path.join(STATIC_DIR, "assets")), name="assets")
+    
+    @app.get("/")
+    async def serve_react_app():
+        return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
 def extract_exif(file_path: str) -> dict:
     """Helper to extract EXIF data to fulfill the Phase 1 EXIF requirement."""
