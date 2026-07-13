@@ -1,19 +1,33 @@
-# Layer 1 (peachcheck/layers/provenance.py) — C2PA manifest reading + signature verification
+# PeachCheck dependencies. Per Congressional App Challenge rules, every open-source
+# library is documented here against what the team wrote itself (see README.md,
+# "What the team wrote vs. what libraries do").
+
+# --- Provenance layer (peachcheck/layers/provenance.py) ---
+# Reads the JUMBF container and verifies COSE signatures; the team wrote the
+# four-state routing decision logic on top of it.
 c2pa-python
 
-# Layer 3 (peachcheck/layers/forensics.py) — ELA + FFT signals (image load, array math)
+# --- Forensics layer (peachcheck/layers/forensics.py) ---
+# Image I/O + array math. ELA and FFT signal logic is team-written on these.
 Pillow
 numpy
-
-# Layer 3 (peachcheck/layers/forensics.py) — pretrained deepfake/AI-image classifier
-# (pretrained weights only; the model is never trained in-house, see check_ml_classifier)
+# Pretrained AI-image classifier (umm-maybe/AI-image-detector). Pretrained weights
+# only — the model is never trained in-house; see check_ml_classifier.
 transformers
 torch
 
-# Layer 2 (peachcheck/layers/measurement.py) — OCR for disclosure text bounding boxes
+# --- Measurement layer (peachcheck/layers/measurement.py) ---
+# OCR engines for disclosure bounding boxes. pytesseract is used when the tesseract
+# binary exists (the Docker image installs it); easyocr is the pure-pip fallback for
+# local dev machines. All threshold arithmetic is team-written.
 pytesseract
+easyocr
 
-# Week 1 - FastAPI Walking Skeleton
+# --- API (app.py) ---
 fastapi
 uvicorn
 python-multipart
+
+# --- Tests ---
+pytest
+httpx

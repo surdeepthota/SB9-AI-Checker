@@ -7,30 +7,28 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-# Stage 2: Build the FastAPI backend and serve the static files
+# Stage 2: FastAPI backend serving the built frontend as static files
 FROM python:3.11-slim
 WORKDIR /app
 
-# Install system dependencies required for c2pa-python and image processing
+# tesseract gives the measurement layer its primary OCR engine (pytesseract);
+# build-essential is needed to compile native wheels where prebuilt ones are missing.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend code
+# Backend code + bundled demo corpus (see .dockerignore for exclusions)
 COPY . .
 
-# Copy built frontend assets to serve them via FastAPI
+# Built frontend assets, served by FastAPI at /
 COPY --from=frontend-builder /app/frontend/dist /app/static
 
-# We need to slightly update app.py to serve the static files (handled via UI/UX instructions)
-# Expose port (Cloud Run defaults to 8080)
+# Cloud Run injects PORT (defaults to 8080)
 ENV PORT=8080
 EXPOSE 8080
 
-# Command to run uvicorn
 CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT}"]

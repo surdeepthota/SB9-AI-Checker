@@ -1,16 +1,15 @@
-# React + Vite
+# PeachCheck frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + Vite UI for the PeachCheck trust pipeline. See the repository root
+[README](../README.md) for the full project documentation, setup, and demo script.
 
-Currently, two official plugins are available:
+```bash
+npm ci
+npm run dev     # dev server on :5173, proxies API calls to the backend on :8000
+npm run build   # production bundle (served by FastAPI in the Docker image)
+npm run lint    # oxlint
+```
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+Design rule carried over from the backend: components render the trust report and
+nothing else — every fact shown was written by a pipeline layer server-side, and the
+UI never re-derives a verdict.

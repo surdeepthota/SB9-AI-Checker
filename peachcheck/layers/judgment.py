@@ -66,14 +66,24 @@ def calibrate(raw_score: float, calibration_version: str = "v0-identity") -> flo
     return raw_score
 
 
-def build_judgment(raw_score: float, calibration_version: str = "v0-identity") -> JudgmentBlock:
-    """Run a raw forensics score through calibration and banding."""
+def build_judgment(
+    raw_score: float,
+    calibration_version: str = "v0-identity",
+    rationale: str | None = None,
+) -> JudgmentBlock:
+    """Run a raw forensics score through calibration and banding.
+
+    `rationale` is a plain-language line about where the raw score came from (which
+    signals fired, with what weights) — written by the caller, because only the
+    caller knows the fusion context. It rides along so the UI never reconstructs it.
+    """
     calibrated = calibrate(raw_score, calibration_version)
     return JudgmentBlock(
         raw_score=raw_score,
         calibrated_score=calibrated,
         band=band_for_score(calibrated),
         calibration_version=calibration_version,
+        rationale=rationale,
     )
 
 

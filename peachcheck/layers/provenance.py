@@ -18,9 +18,9 @@ Four-state routing table [LOCKED — see project context, section 5.1]:
     VALID_CAPTURE      signed, camera origin                      early exit, no ML
     VALID_AI_ASSERTED  signed, digitalSourceType=trainedAlgorithmicMedia
                                                                    -> measurement layer
-    TAMPERED           signature or hash check failed post-signing -> straight to
-                                                                      evidence packet
-    UNTRUSTED          no manifest / can't verify                 -> forensics panel,
+    TAMPERED           signature valid but content hash broken     -> straight to
+                       post-signing                                  evidence packet
+    UNTRUSTED          no manifest / signature can't be verified  -> forensics panel,
                                                                       labeled "unknown
                                                                       provenance"
 
@@ -37,13 +37,25 @@ from typing import Optional
 from peachcheck.schema import C2PAState, ProvenanceBlock
 
 try:
-    # Real dependency for Week 1: `pip install c2pa-python`. Not required to import
-    # this module — only to call verify_provenance() against a real file.
+    # Real dependency: `pip install c2pa-python`. Not required to import this module —
+    # only to call verify_provenance() against a real file.
     import c2pa  # type: ignore[import-not-found]
 
     _C2PA_AVAILABLE = True
 except ImportError:
     _C2PA_AVAILABLE = False
+
+
+# digitalSourceType values (IPTC vocabulary) that count as a signed AI self-declaration
+# under SB 9 §21-5-90(1). trainedAlgorithmicMedia is the canonical one; the composite
+# variants cover AI edits layered onto real captures.
+AI_SOURCE_TYPES = frozenset(
+    {
+        "trainedAlgorithmicMedia",
+        "compositeWithTrainedAlgorithmicMedia",
+        "algorithmicMedia",
+    }
+)
 
 
 @dataclass
@@ -57,79 +69,98 @@ class RawManifest:
     """
 
     has_manifest: bool
-    signature_valid: bool = False       # COSE signature checks out against the trust list
+    signature_valid: bool = False       # COSE signature cryptographically checks out
     hashes_match: bool = False          # recomputed content hashes match the manifest's claim
+    trusted_signer: bool = False        # cert chains to the C2PA trust list (vs. e.g. a test cert)
+    cert_expired: bool = False          # signing credential itself is no longer valid
     digital_source_type: Optional[str] = None  # e.g. "trainedAlgorithmicMedia", "digitalCapture"
     signer: Optional[str] = None
+    claim_generator: Optional[str] = None
     assertions: list[str] = field(default_factory=list)
-    failed_assertion: Optional[str] = None  # which assertion broke, if hashes_match is False
+    failed_assertion: Optional[str] = None  # which check broke, if hashes_match is False
 
 
 def _read_manifest(file_path: str) -> RawManifest:
-    """Read and cryptographically validate the embedded C2PA manifest, if any."""
+    """Read and cryptographically validate the embedded C2PA manifest, if any.
+
+    Verified against c2pa-python 0.36.0 behavior on the official C2PA public test
+    files (corpus/samples/): Reader.try_create returns None when no manifest is
+    embedded; validation results arrive as {"activeManifest": {"success": [...],
+    "informational": [...], "failure": [...]}} with per-check codes like
+    "assertion.dataHash.mismatch" and "claimSignature.mismatch".
+    """
     if not _C2PA_AVAILABLE:
         raise RuntimeError(
             "c2pa-python is not installed. Run `pip install -r requirements.txt`, "
             "or call route() directly with a hand-built RawManifest for testing."
         )
-    
+
     try:
         reader = c2pa.Reader.try_create(file_path)
     except Exception:
-        # Invalid file format or completely unreadable
+        # Unreadable/unsupported file format — treat as "nothing verifiable".
         return RawManifest(has_manifest=False)
 
     if reader is None:
         return RawManifest(has_manifest=False)
 
     manifest_data = reader.get_active_manifest() or {}
-    val_results = reader.get_validation_results() or {}
-    
-    # Defaults assuming it parsed
+    validation = reader.get_validation_results() or {}
+    failures = (validation.get("activeManifest") or {}).get("failure") or []
+
     signature_valid = True
     hashes_match = True
+    trusted_signer = True
+    cert_expired = False
     failed_assertion = None
-    
-    # Any validation errors present?
-    errors = val_results.get("errors", [])
-    if errors:
-        for err in errors:
-            code = err.get("code", "")
-            if "signature" in code:
-                signature_valid = False
-            elif "hash" in code or "hashedURI.mismatch" in code:
-                hashes_match = False
-                failed_assertion = err.get("url")
 
-    # Extract assertions
-    assertions_list = manifest_data.get("assertions", [])
-    assertions_urls = [a.get("url", "") for a in assertions_list]
-    
-    # Look for digitalSourceType
+    for failure in failures:
+        code = failure.get("code", "")
+        if "claimSignature" in code:
+            # The COSE signature itself doesn't verify — nothing downstream of it
+            # (including hash claims) can be trusted.
+            signature_valid = False
+        elif "hash" in code.lower():
+            # Covers assertion.dataHash.mismatch and assertion.hashedURI.mismatch:
+            # the signature is fine but the content changed after signing.
+            hashes_match = False
+            failed_assertion = failure.get("code")
+        elif code == "signingCredential.expired":
+            # The credential itself is no longer valid — stronger than merely not
+            # being on the trust list; route() sends this to UNTRUSTED.
+            cert_expired = True
+        elif "signingCredential" in code:
+            # Signature math checks out but the certificate doesn't chain to the
+            # C2PA trust list (e.g. a test cert). Recorded separately: the manifest
+            # is internally consistent, we just can't vouch for who signed it.
+            trusted_signer = False
+
+    # Assertions are labeled (e.g. "c2pa.actions.v2"); digitalSourceType lives inside
+    # the actions assertion, one entry per recorded action.
+    assertion_labels: list[str] = []
     digital_source_type = None
-    for assertion in assertions_list:
-        # Typically found in c2pa.actions
-        if "c2pa.actions" in assertion.get("label", ""):
-            actions = assertion.get("data", {}).get("actions", [])
-            for action_dict in actions:
-                dst = action_dict.get("digitalSourceType")
+    for assertion in manifest_data.get("assertions", []):
+        label = assertion.get("label", "")
+        assertion_labels.append(label)
+        if label.startswith("c2pa.actions"):
+            for action_entry in assertion.get("data", {}).get("actions", []):
+                dst = action_entry.get("digitalSourceType")
                 if dst:
-                    # Usually a URI, grab the last part e.g. "trainedAlgorithmicMedia"
-                    digital_source_type = str(dst).split("/")[-1]
+                    # Stored as an IPTC URI; keep just the final vocabulary term.
+                    digital_source_type = str(dst).rstrip("/").split("/")[-1]
 
-    # Look for signer info
-    signer = None
-    sig_info = manifest_data.get("signature_info", {})
-    if sig_info:
-        signer = sig_info.get("issuer")
+    signature_info = manifest_data.get("signature_info") or {}
 
     return RawManifest(
         has_manifest=True,
         signature_valid=signature_valid,
         hashes_match=hashes_match,
+        trusted_signer=trusted_signer,
+        cert_expired=cert_expired,
         digital_source_type=digital_source_type,
-        signer=signer,
-        assertions=assertions_urls,
+        signer=signature_info.get("issuer") or signature_info.get("common_name"),
+        claim_generator=manifest_data.get("claim_generator"),
+        assertions=assertion_labels,
         failed_assertion=failed_assertion,
     )
 
@@ -138,11 +169,44 @@ def route(raw: RawManifest) -> ProvenanceBlock:
     """Pure decision logic for the four-state routing table. No I/O, no model calls —
     safe to unit-test directly against hand-built RawManifest fixtures.
     """
-    if not raw.has_manifest or not raw.signature_valid:
-        # No signed manifest, or a signature that doesn't chain to the trust list:
-        # either way there is nothing verifiable here. This is NOT evidence of
-        # synthesis — say "unknown provenance," never "fake".
-        return ProvenanceBlock(state=C2PAState.UNTRUSTED)
+    if not raw.has_manifest:
+        return ProvenanceBlock(
+            state=C2PAState.UNTRUSTED,
+            explanation=(
+                "No Content Credentials manifest is embedded in this file. That is "
+                "not evidence of anything by itself — social platforms and messaging "
+                "apps routinely strip credentials on re-encode."
+            ),
+        )
+
+    if not raw.signature_valid:
+        # A manifest whose signature fails verification proves nothing in either
+        # direction — the safe reading is the same as having no manifest at all.
+        return ProvenanceBlock(
+            state=C2PAState.UNTRUSTED,
+            signer=raw.signer,
+            claim_generator=raw.claim_generator,
+            trust_list_result=False,
+            assertions=raw.assertions,
+            explanation=(
+                "A Content Credentials manifest is present but its cryptographic "
+                "signature does not verify, so none of its claims can be relied on."
+            ),
+        )
+
+    if raw.cert_expired:
+        # Valid math, dead credential: the safe reading is still "can't vouch".
+        return ProvenanceBlock(
+            state=C2PAState.UNTRUSTED,
+            signer=raw.signer,
+            claim_generator=raw.claim_generator,
+            trust_list_result=False,
+            assertions=raw.assertions,
+            explanation=(
+                "A signed manifest is present but its signing certificate has "
+                "expired, so the signer's identity can no longer be vouched for."
+            ),
+        )
 
     if not raw.hashes_match:
         # Signed, but content hashes no longer match the manifest's claim: proof of
@@ -152,28 +216,53 @@ def route(raw: RawManifest) -> ProvenanceBlock:
         return ProvenanceBlock(
             state=C2PAState.TAMPERED,
             signer=raw.signer,
-            trust_list_result=True,
+            claim_generator=raw.claim_generator,
+            trust_list_result=raw.trusted_signer,
             assertions=raw.assertions,
             failed_assertion=raw.failed_assertion,
+            explanation=(
+                "The signed manifest's content hashes no longer match this file — "
+                "cryptographic proof that the content was altered after it was signed."
+            ),
         )
 
-    if raw.digital_source_type == "trainedAlgorithmicMedia":
+    trust_note = (
+        ""
+        if raw.trusted_signer
+        else " Note: the signing certificate does not chain to the C2PA trust list, "
+        "so the signer's identity is asserted, not independently vouched for."
+    )
+
+    if raw.digital_source_type in AI_SOURCE_TYPES:
         # The file has "confessed" to being AI-generated media, by its own signed
         # testimony -> this is exactly the §21-5-90 trigger for disclosure measurement.
         return ProvenanceBlock(
             state=C2PAState.VALID_AI_ASSERTED,
             signer=raw.signer,
-            trust_list_result=True,
+            claim_generator=raw.claim_generator,
+            trust_list_result=raw.trusted_signer,
             assertions=raw.assertions,
+            digital_source_type=raw.digital_source_type,
+            explanation=(
+                "This file's own signed manifest declares it AI-generated "
+                f"(digitalSourceType: {raw.digital_source_type}). Under SB 9 the "
+                "question becomes disclosure compliance, not authenticity." + trust_note
+            ),
         )
 
-    # Signed, hashes match, and no AI assertion: a verified camera capture.
-    # Pipeline.py treats this as an early exit — no ML ever runs on this file.
+    # Signed, hashes match, and no AI assertion: a verified capture/edit history.
+    # pipeline.py treats this as an early exit — no ML ever runs on this file.
     return ProvenanceBlock(
         state=C2PAState.VALID_CAPTURE,
         signer=raw.signer,
-        trust_list_result=True,
+        claim_generator=raw.claim_generator,
+        trust_list_result=raw.trusted_signer,
         assertions=raw.assertions,
+        digital_source_type=raw.digital_source_type,
+        explanation=(
+            "This file carries an intact, validly signed Content Credentials "
+            "manifest with no AI-generation assertion." + trust_note
+        ),
     )
 
 
