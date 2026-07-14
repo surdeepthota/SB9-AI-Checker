@@ -2,12 +2,12 @@ import React from 'react';
 import { useLightbox } from '../lightbox-context';
 
 const CHECK_LABELS = {
-  content_ai_use_stated: 'States AI was used — §21-5-91(a)(4)',
-  content_events_caveat_stated: '"Events may not have occurred" — §21-5-91(a)(3)',
-  content_sponsor_named: 'Sponsor / "paid for by" named — §21-5-91(a)(1)',
-  text_height_ratio: 'Text ≥ 30% of frame height — §21-5-92(1)(B)(i)',
-  visible_duration_ratio: 'Visible ≥ 30% of duration — §21-5-92(1)(B)(ii)',
-  contrast_ratio: 'Contrast vs the ad’s own text — §21-5-92(1)(B)(iii)',
+  content_ai_use_stated: 'States AI was used',
+  content_events_caveat_stated: '"Events may not have occurred" stated',
+  content_sponsor_named: 'Sponsor / "paid for by" named',
+  text_height_ratio: 'Text size is large enough',
+  visible_duration_ratio: 'Visible for long enough',
+  contrast_ratio: 'Text contrast is readable',
 };
 
 function formatValue(check) {
@@ -26,61 +26,70 @@ export default function MeasurementCard({ measurement }) {
   return (
     <div className="glass-card layer-card">
       <div className="layer-head">
-        <span className="layer-title">Disclosure Measurement — SB 9 thresholds</span>
+        <span className="layer-title">Disclosure Check</span>
         <span className="chip deterministic">deterministic</span>
       </div>
 
-      {measurement.checks?.length > 0 ? (
-        <div className="table-scroll">
-          <table className="check-table">
-            <thead>
-              <tr><th>Requirement</th><th>Measured / Required</th><th>Result</th></tr>
-            </thead>
-            <tbody>
-              {measurement.checks.map((check) => (
-                <React.Fragment key={check.name}>
-                  <tr>
-                    <td>{CHECK_LABELS[check.name] || check.name}</td>
-                    <td className="mono">{formatValue(check)}</td>
-                    <td>
-                      <span className={`badge ${check.passed ? 'success' : 'danger'}`}>
-                        {check.passed ? 'meets bar' : 'below bar'}
-                      </span>
-                    </td>
-                  </tr>
-                  {check.detail && (
-                    <tr><td colSpan={3} className="detail">{check.detail}</td></tr>
-                  )}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className="inset note-text">{measurement.note || 'No measurements produced.'}</p>
-      )}
+      <p style={{ fontSize: '0.95rem' }}>
+        {measurement.checks?.length > 0
+          ? (measurement.checks.every(c => c.passed) ? "This image meets all the disclosure requirements." : "This image does not meet all the required disclosure rules.")
+          : (measurement.note || 'No measurements produced.')}
+      </p>
 
-      {measurement.disclosure_text && (
-        <div className="inset">
-          <div className="kv"><span className="k">Disclosure text as read (OCR)</span></div>
-          <p style={{ fontFamily: 'var(--mono)', fontSize: '0.82rem', marginTop: '0.35rem', color: 'var(--text-secondary)' }}>
-            “{measurement.disclosure_text}”
-          </p>
-        </div>
-      )}
+      {measurement.checks?.length > 0 && (
+        <details className="collapse">
+          <summary>Advanced Details</summary>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
+            <div className="table-scroll">
+              <table className="check-table">
+                <thead>
+                  <tr><th>Requirement</th><th>Measured / Required</th><th>Result</th></tr>
+                </thead>
+                <tbody>
+                  {measurement.checks.map((check) => (
+                    <React.Fragment key={check.name}>
+                      <tr>
+                        <td>{CHECK_LABELS[check.name] || check.name}</td>
+                        <td className="mono">{formatValue(check)}</td>
+                        <td>
+                          <span className={`badge ${check.passed ? 'success' : 'danger'}`}>
+                            {check.passed ? 'meets bar' : 'below bar'}
+                          </span>
+                        </td>
+                      </tr>
+                      {check.detail && (
+                        <tr><td colSpan={3} className="detail">{check.detail}</td></tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-      {evidence && (
-        <figure className="evidence-figure">
-          <img src={evidence} alt="Frame with the measured disclosure bounding box drawn on it" onClick={() => zoom(evidence)} />
-          <figcaption>
-            Visual proof: the exact box the height percentage was computed from. Redo the arithmetic
-            by hand and you get the same number.
-          </figcaption>
-        </figure>
-      )}
+            {measurement.disclosure_text && (
+              <div className="inset">
+                <div className="kv"><span className="k">Disclosure text as read (OCR)</span></div>
+                <p style={{ fontFamily: 'var(--mono)', fontSize: '0.82rem', marginTop: '0.35rem', color: 'var(--text-secondary)' }}>
+                  “{measurement.disclosure_text}”
+                </p>
+              </div>
+            )}
 
-      {measurement.checks?.length > 0 && measurement.note && (
-        <p className="note-text">{measurement.note}</p>
+            {evidence && (
+              <figure className="evidence-figure">
+                <img src={evidence} alt="Frame with the measured disclosure bounding box drawn on it" onClick={() => zoom(evidence)} />
+                <figcaption>
+                  Visual proof: the exact box the height percentage was computed from. Redo the arithmetic
+                  by hand and you get the same number.
+                </figcaption>
+              </figure>
+            )}
+
+            {measurement.note && (
+              <p className="note-text">{measurement.note}</p>
+            )}
+          </div>
+        </details>
       )}
     </div>
   );

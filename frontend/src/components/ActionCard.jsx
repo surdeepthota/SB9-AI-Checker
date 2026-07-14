@@ -44,41 +44,52 @@ export default function ActionCard({ action, trustReport }) {
   return (
     <div className="glass-card layer-card">
       <div className="layer-head">
-        <span className="layer-title">Civic Action — SB 9 evidence packet</span>
+        <span className="layer-title">Take Action</span>
         <span className="chip human">human decision</span>
       </div>
 
-      <div className="kv-grid">
-        <div className="kv">
-          <span className="k">Next Georgia election</span>
-          <span className="v">{action.next_election_name} · {action.next_election_date}</span>
-        </div>
-        <div className="kv">
-          <span className="k">90-day statutory window</span>
-          <span className="v" style={{ color: action.within_90_day_window ? '#34d399' : undefined }}>
-            {action.within_90_day_window
-              ? `open — ${action.days_until_election} days to the election`
-              : `not open${action.window_opens ? ` (opens ${action.window_opens})` : ''}`}
-          </span>
-        </div>
-        <div className="kv">
-          <span className="k">Deterministic gate</span>
-          <span className="v" style={{ color: action.gate_passed ? '#34d399' : undefined }}>
-            {action.gate_passed ? 'passed' : 'closed'}
-          </span>
-        </div>
-      </div>
+      <p style={{ fontSize: '0.95rem', marginBottom: '0.5rem' }}>
+        {action.gate_passed 
+          ? "This media meets the criteria for a civic action report." 
+          : "This media does not currently meet the criteria for a civic action report."}
+      </p>
 
-      {action.deterministic_corroboration?.length > 0 && (
-        <div className="inset">
-          <span className="k" style={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-tertiary)' }}>
-            Deterministic corroboration
-          </span>
-          <ul style={{ marginTop: '0.4rem', marginLeft: '1.2rem', fontFamily: 'var(--mono)', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            {action.deterministic_corroboration.map((item) => <li key={item}>{item}</li>)}
-          </ul>
+      <details className="collapse">
+        <summary>Advanced Details</summary>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
+          <div className="kv-grid">
+            <div className="kv">
+              <span className="k">Next Georgia election</span>
+              <span className="v">{action.next_election_name} · {action.next_election_date}</span>
+            </div>
+            <div className="kv">
+              <span className="k">90-day statutory window</span>
+              <span className="v" style={{ color: action.within_90_day_window ? '#34d399' : undefined }}>
+                {action.within_90_day_window
+                  ? `open — ${action.days_until_election} days to the election`
+                  : `not open${action.window_opens ? ` (opens ${action.window_opens})` : ''}`}
+              </span>
+            </div>
+            <div className="kv">
+              <span className="k">Deterministic gate</span>
+              <span className="v" style={{ color: action.gate_passed ? '#34d399' : undefined }}>
+                {action.gate_passed ? 'passed' : 'closed'}
+              </span>
+            </div>
+          </div>
+
+          {action.deterministic_corroboration?.length > 0 && (
+            <div className="inset">
+              <span className="k" style={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-tertiary)' }}>
+                Deterministic corroboration
+              </span>
+              <ul style={{ marginTop: '0.4rem', marginLeft: '1.2rem', fontFamily: 'var(--mono)', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                {action.deterministic_corroboration.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </div>
+          )}
         </div>
-      )}
+      </details>
 
       <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)' }}>{action.guidance}</p>
 
@@ -86,7 +97,7 @@ export default function ActionCard({ action, trustReport }) {
         <>
           <hr className="divider" />
           <div>
-            <h4 style={{ fontSize: '0.95rem', marginBottom: '0.2rem' }}>Exemption questionnaire — §21-2-605(d)</h4>
+            <h4 style={{ fontSize: '0.95rem', marginBottom: '0.2rem' }}>Exemption Questionnaire</h4>
             <p className="note-text">
               Georgia’s statute exempts First Amendment–protected media entirely. Answer honestly:
               an exemption means no filing is appropriate, and PeachCheck will say so.
