@@ -177,12 +177,46 @@ header.masthead { text-align: center; padding-top: 1rem; }
 }
 .btn.ghost:hover { background: rgba(255, 255, 255, 0.14); }
 
+.url-uploader {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.url-uploader input {
+  flex: 1 1 320px;
+  min-width: 0;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: var(--inset-bg);
+  color: var(--text-primary);
+  padding: 0.85rem 1rem;
+  font: inherit;
+}
+
+.url-uploader input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.url-uploader input:focus {
+  outline: 2px solid rgba(249, 115, 22, 0.35);
+  outline-offset: 2px;
+}
+
 /* ---------- headline banner ---------- */
 .headline-banner {
   border-left: 4px solid var(--accent-primary);
   font-size: 1.12rem;
   line-height: 1.6;
   font-weight: 500;
+}
+.headline-banner .frame-label {
+  margin-bottom: 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-primary);
 }
 .headline-banner .filename {
   font-family: var(--mono);

@@ -3,36 +3,43 @@ import Uploader from './components/Uploader';
 import ReportCard from './components/ReportCard';
 import { LightboxProvider } from './components/Lightbox';
 import { analyzeFile, analyzeSample, listSamples } from './api';
+import { extractFramesFromClipUrl } from './media-url';
 
 function App() {
-  const [reportData, setReportData] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
+  const [analysisResult, setAnalysisResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [samples, setSamples] = useState([]);
-  const objectUrlRef = useRef(null);
+  const objectUrlsRef = useRef([]);
 
   useEffect(() => {
     listSamples()
       .then((body) => setSamples(body.samples || []))
       .catch(() => setSamples([])); // demo gallery is optional; the uploader still works
+    return () => {
+      objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      objectUrlsRef.current = [];
+    };
   }, []);
 
-  const releasePreview = () => {
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = null;
+  const trackObjectUrl = (url) => {
+    if (url) {
+      objectUrlsRef.current.push(url);
     }
   };
 
-  const run = async (task, preview) => {
+  const releasePreviews = () => {
+    objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    objectUrlsRef.current = [];
+  };
+
+  const run = async (task) => {
     setLoading(true);
     setError(null);
-    setReportData(null);
-    releasePreview();
-    setPreviewUrl(preview || null);
+    setAnalysisResult(null);
+    releasePreviews();
     try {
-      setReportData(await task());
+      setAnalysisResult(await task());
     } catch (err) {
       setError(err.message || 'Analysis failed.');
     } finally {
@@ -40,21 +47,53 @@ function App() {
     }
   };
 
-  const handleUpload = (file, isCampaignAd) => {
-    const url = URL.createObjectURL(file);
-    objectUrlRef.current = url;
-    run(() => analyzeFile(file, isCampaignAd), url);
+  const handleUpload = (upload, isCampaignAd) => {
+    if (upload?.clipUrl) {
+      run(async () => {
+        const clip = await extractFramesFromClipUrl(upload.clipUrl);
+        clip.frames.forEach((frame) => trackObjectUrl(frame.previewUrl));
+        const reports = await Promise.all(
+          clip.frames.map(async (frame, index) => ({
+            frameNumber: index + 1,
+            seconds: frame.seconds,
+            label: frame.label,
+            previewUrl: frame.previewUrl,
+            data: await analyzeFile(frame.file, isCampaignAd),
+          })),
+        );
+        return {
+          kind: 'clip',
+          clipUrl: upload.clipUrl,
+          durationSeconds: clip.durationSeconds,
+          reports,
+        };
+      });
+      return;
+    }
+
+    run(async () => {
+      const previewUrl = URL.createObjectURL(upload);
+      trackObjectUrl(previewUrl);
+      return {
+        kind: 'single',
+        previewUrl,
+        data: await analyzeFile(upload, isCampaignAd),
+      };
+    });
   };
 
   const handleSample = (filename, isCampaignAd) => {
-    run(() => analyzeSample(filename, isCampaignAd), null);
+    run(async () => ({
+      kind: 'single',
+      previewUrl: null,
+      data: await analyzeSample(filename, isCampaignAd),
+    }));
   };
 
   const handleReset = () => {
-    setReportData(null);
+    setAnalysisResult(null);
     setError(null);
-    releasePreview();
-    setPreviewUrl(null);
+    releasePreviews();
   };
 
   return (
@@ -78,12 +117,46 @@ function App() {
             </div>
           )}
 
-          {!reportData && !error && (
+          {!analysisResult && !error && (
             <Uploader onUpload={handleUpload} onSample={handleSample} samples={samples} loading={loading} />
           )}
 
-          {reportData && !error && (
-            <ReportCard data={reportData} previewUrl={previewUrl} onReset={handleReset} />
+          {analysisResult?.kind === 'single' && !error && (
+            <ReportCard data={analysisResult.data} previewUrl={analysisResult.previewUrl} onReset={handleReset} />
+          )}
+
+          {analysisResult?.kind === 'clip' && !error && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.4rem' }}>
+              <div className="glass-card layer-card">
+                <div className="layer-head">
+                  <span className="layer-title">Clip Analysis</span>
+                  <span className="layer-sub">{analysisResult.reports.length} sampled frames from a {Math.round(analysisResult.durationSeconds)} second clip</span>
+                </div>
+                <div className="kv-grid">
+                  <div className="kv"><span className="k">Source URL</span><span className="v" title={analysisResult.clipUrl}>{analysisResult.clipUrl}</span></div>
+                  <div className="kv"><span className="k">Frames analyzed</span><span className="v">{analysisResult.reports.length}</span></div>
+                </div>
+                <p className="note-text">
+                  Each frame below was analyzed independently with the existing still-image trust pipeline.
+                  Re-encoded clips and screenshots often strip provenance, so frame-level results should be read
+                  as evidence snapshots, not as proof about the full video.
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button className="btn ghost" onClick={handleReset}>Analyze another</button>
+                </div>
+              </div>
+
+              {analysisResult.reports.map((frame) => (
+                <ReportCard
+                  key={`${frame.frameNumber}-${frame.label}`}
+                  data={frame.data}
+                  previewUrl={frame.previewUrl}
+                  onReset={handleReset}
+                  title={`Frame ${frame.frameNumber} · ${frame.label}`}
+                  showReset={false}
+                />
+              ))}
+            </div>
           )}
         </main>
 

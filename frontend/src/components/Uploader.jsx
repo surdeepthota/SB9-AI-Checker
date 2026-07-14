@@ -10,6 +10,7 @@ const STATE_BADGES = {
 export default function Uploader({ onUpload, onSample, samples, loading }) {
   const [dragActive, setDragActive] = useState(false);
   const [isCampaignAd, setIsCampaignAd] = useState(false);
+  const [clipUrl, setClipUrl] = useState('');
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -77,6 +78,33 @@ export default function Uploader({ onUpload, onSample, samples, loading }) {
           />
           This is a campaign advertisement — also measure its SB 9 disclosure
         </label>
+      </div>
+
+      <div className="glass-card layer-card">
+        <div className="layer-head">
+          <span className="layer-title">Short Clip Link</span>
+          <span className="layer-sub">extracts a few frames and runs the still-image pipeline on each one</span>
+        </div>
+        <div className="url-uploader">
+          <input
+            type="url"
+            value={clipUrl}
+            placeholder="https://example.com/clip.mp4"
+            onChange={(e) => setClipUrl(e.target.value)}
+          />
+          <button
+            type="button"
+            className="btn"
+            onClick={() => onUpload({ clipUrl: clipUrl.trim() }, isCampaignAd)}
+            disabled={!clipUrl.trim()}
+          >
+            Analyze clip
+          </button>
+        </div>
+        <p className="note-text">
+          Current phase: direct public video files only. The browser samples a few frames from short MP4,
+          WebM, or MOV clips, then runs the existing image analysis on each frame.
+        </p>
       </div>
 
       {samples?.length > 0 && (
