@@ -23,6 +23,7 @@ def test_health_reports_capabilities():
     body = client.get("/api/health").json()
     assert body["status"] == "ok"
     assert "c2pa" in body and "ocr_engine" in body
+    assert "clip_url_support" in body
 
 
 def test_analyze_returns_full_trust_report():
@@ -78,3 +79,102 @@ def test_packet_flow_from_analysis():
     # Plain image, no deterministic corroboration -> never eligible.
     assert packet["packet_eligible"] is False
     assert "not filed automatically" in packet["submission_instructions"]
+
+
+def test_analyze_clip_url_rejects_invalid_scheme():
+    response = client.post(
+        "/analyze-clip-url",
+        json={"url": "not-a-url", "is_campaign_ad": False},
+    )
+    assert response.status_code == 422
+    assert "http://" in response.json()["detail"]
+
+
+def test_analyze_clip_url_returns_frame_reports(monkeypatch, tmp_path):
+    frame_path = tmp_path / "frame-1.png"
+    Image.new("RGB", (48, 48), (120, 130, 140)).save(frame_path, "PNG")
+
+    from peachcheck.clip_analysis import SampledClip, SampledFrame
+
+    def fake_resolve_and_sample_clip(
+        url: str,
+        temp_dir: str,
+        frame_count: int = 3,
+    ):
+        assert url == "https://www.youtube.com/watch?v=test"
+        assert frame_count == 5
+        return SampledClip(
+            source_url=url,
+            duration_seconds=12.0,
+            frames=[
+                SampledFrame(
+                    frame_number=1,
+                    seconds=3.0,
+                    label="00:03",
+                    image_path=str(frame_path),
+                    preview_data_url="data:image/png;base64,abc",
+                )
+            ],
+        )
+
+    monkeypatch.setattr("app.resolve_and_sample_clip", fake_resolve_and_sample_clip)
+
+    response = client.post(
+        "/analyze-clip-url",
+        json={"url": "https://www.youtube.com/watch?v=test", "is_campaign_ad": False},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["clip_url"] == "https://www.youtube.com/watch?v=test"
+    assert body["duration_seconds"] == 12.0
+    assert body["clip_summary"]["sampled_frames"] == 1
+    assert body["clip_summary"]["clip_decision_score"] >= body["clip_summary"]["average_frame_score"]
+    assert body["clip_summary"]["judgment"]["band"]
+    assert len(body["reports"]) == 1
+    report = body["reports"][0]
+    assert report["frame_number"] == 1
+    assert report["label"] == "00:03"
+    assert report["preview_data_url"].startswith("data:image/png;base64,")
+    assert report["analysis"]["trust_report"]["identity"]["sha256"]
+
+
+def test_analyze_clip_url_strict_mode_increases_frame_request(monkeypatch, tmp_path):
+    frame_path = tmp_path / "frame-1.png"
+    Image.new("RGB", (48, 48), (120, 130, 140)).save(frame_path, "PNG")
+
+    from peachcheck.clip_analysis import SampledClip, SampledFrame
+
+    def fake_resolve_and_sample_clip(
+        url: str,
+        temp_dir: str,
+        frame_count: int = 3,
+    ):
+        assert frame_count == 7
+        return SampledClip(
+            source_url=url,
+            duration_seconds=12.0,
+            frames=[
+                SampledFrame(
+                    frame_number=1,
+                    seconds=3.0,
+                    label="00:03",
+                    image_path=str(frame_path),
+                    preview_data_url="data:image/png;base64,abc",
+                )
+            ],
+        )
+
+    monkeypatch.setattr("app.resolve_and_sample_clip", fake_resolve_and_sample_clip)
+
+    response = client.post(
+        "/analyze-clip-url",
+        json={
+            "url": "https://www.youtube.com/watch?v=test",
+            "is_campaign_ad": False,
+            "strict_mode": True,
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["clip_summary"]["strict_mode"] is True
+    assert body["clip_summary"]["clip_decision_score"] >= body["clip_summary"]["average_frame_score"]

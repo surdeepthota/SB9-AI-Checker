@@ -30,6 +30,21 @@ export async function analyzeSample(filename, isCampaignAd) {
   );
 }
 
+export async function analyzeClipUrl(url, isCampaignAd, frameCount = 3, strictMode = false) {
+  return toJsonOrThrow(
+    await fetch('/analyze-clip-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url,
+        is_campaign_ad: isCampaignAd,
+        frame_count: frameCount,
+        strict_mode: strictMode,
+      }),
+    }),
+  );
+}
+
 export async function listSamples() {
   return toJsonOrThrow(await fetch('/samples'));
 }

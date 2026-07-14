@@ -1,0 +1,176 @@
+"""Server-side clip URL resolution and frame sampling.
+
+This module exists because asking users for a raw .mp4 URL is not a realistic UX.
+Given a normal video page URL (TikTok, YouTube, Instagram, or a direct file), it
+uses yt-dlp to fetch a locally readable copy of the clip, then samples a few still
+frames server-side so the existing image pipeline can analyze them unchanged.
+"""
+
+from __future__ import annotations
+
+import base64
+import os
+from dataclasses import dataclass
+from io import BytesIO
+from urllib.parse import urlparse
+
+
+@dataclass
+class SampledFrame:
+    frame_number: int
+    seconds: float
+    label: str
+    image_path: str
+    preview_data_url: str
+
+
+@dataclass
+class SampledClip:
+    source_url: str
+    duration_seconds: float
+    frames: list[SampledFrame]
+
+
+def _require_http_url(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("Enter a valid http:// or https:// clip URL.")
+
+
+def _format_time(seconds: float) -> str:
+    whole = max(0, round(seconds))
+    mins = whole // 60
+    secs = whole % 60
+    return f"{mins:02d}:{secs:02d}"
+
+
+def _png_data_url(png_bytes: bytes) -> str:
+    encoded = base64.b64encode(png_bytes).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
+
+
+def _download_clip(url: str, temp_dir: str) -> str:
+    try:
+        import yt_dlp
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError(
+            "Clip-link support requires yt-dlp on the server. Install requirements and try again."
+        ) from exc
+
+    outtmpl = os.path.join(temp_dir, "clip.%(ext)s")
+    options = {
+        "outtmpl": outtmpl,
+        "format": "mp4/best[ext=mp4]/best",
+        "quiet": True,
+        "noplaylist": True,
+        "merge_output_format": "mp4",
+        "restrictfilenames": True,
+    }
+    with yt_dlp.YoutubeDL(options) as ydl:
+        info = ydl.extract_info(url, download=True)
+        path = ydl.prepare_filename(info)
+        if not os.path.exists(path):
+            requested = info.get("requested_downloads") or []
+            filepath = requested[0].get("filepath") if requested else None
+            if filepath and os.path.exists(filepath):
+                path = filepath
+            else:
+                mp4_path = os.path.splitext(path)[0] + ".mp4"
+                if os.path.exists(mp4_path):
+                    path = mp4_path
+        if not os.path.exists(path):
+            raise RuntimeError("Could not resolve a downloadable clip from that URL.")
+        return path
+
+
+def _sample_frames_from_local_clip(
+    clip_path: str,
+    temp_dir: str,
+    frame_count: int,
+    max_duration_seconds: int,
+) -> tuple[float, list[SampledFrame]]:
+    try:
+        import imageio_ffmpeg
+        import numpy as np
+        from PIL import Image
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError(
+            "Clip-link support requires imageio-ffmpeg, Pillow, and numpy on the server."
+        ) from exc
+
+    reader = imageio_ffmpeg.read_frames(clip_path, pix_fmt="rgb24")
+    meta = next(reader)
+    fps = float(meta.get("fps") or 0.0)
+    size = tuple(meta.get("size") or (0, 0))
+    duration = float(meta.get("duration") or 0.0)
+    if not fps or not size[0] or not size[1] or not duration:
+        raise RuntimeError("Could not read duration and frame metadata from that clip.")
+    if duration > max_duration_seconds:
+        raise RuntimeError(
+            f"Only short clips up to {max_duration_seconds} seconds are supported right now."
+        )
+
+    usable_frame_count = max(1, frame_count)
+    target_times = [((i + 1) / (usable_frame_count + 1)) * duration for i in range(usable_frame_count)]
+    target_indices = [min(round(t * fps), max(0, round(duration * fps) - 1)) for t in target_times]
+
+    frames: list[SampledFrame] = []
+    target_map = {index: position for position, index in enumerate(target_indices)}
+    width, height = size
+    try:
+        for frame_index, frame_bytes in enumerate(reader):
+            if frame_index not in target_map:
+                continue
+            position = target_map[frame_index]
+            seconds = target_times[position]
+            array = np.frombuffer(frame_bytes, dtype=np.uint8).reshape((height, width, 3))
+            image = Image.fromarray(array, mode="RGB")
+            output_path = os.path.join(temp_dir, f"frame-{position + 1}.png")
+            image.save(output_path, "PNG")
+            buf = BytesIO()
+            image.save(buf, "PNG")
+            frames.append(
+                SampledFrame(
+                    frame_number=position + 1,
+                    seconds=seconds,
+                    label=_format_time(seconds),
+                    image_path=output_path,
+                    preview_data_url=_png_data_url(buf.getvalue()),
+                )
+            )
+            if len(frames) == usable_frame_count:
+                break
+    finally:
+        reader.close()
+
+    if len(frames) != usable_frame_count:
+        raise RuntimeError("Could not extract the expected number of frames from that clip.")
+
+    frames.sort(key=lambda frame: frame.frame_number)
+    return duration, frames
+
+
+def resolve_and_sample_clip(
+    url: str,
+    temp_dir: str,
+    frame_count: int = 3,
+    max_duration_seconds: int = 90,
+) -> SampledClip:
+    _require_http_url(url)
+    clip_path = _download_clip(url, temp_dir)
+    duration, frames = _sample_frames_from_local_clip(
+        clip_path,
+        temp_dir=temp_dir,
+        frame_count=frame_count,
+        max_duration_seconds=max_duration_seconds,
+    )
+    return SampledClip(source_url=url, duration_seconds=duration, frames=frames)
+
+
+def clip_support_available() -> bool:
+    try:
+        import yt_dlp  # noqa: F401
+        import imageio_ffmpeg  # noqa: F401
+    except Exception:
+        return False
+    return True

@@ -27,6 +27,9 @@ easyocr
 fastapi
 uvicorn
 python-multipart
+# Social/video URL resolution + server-side frame extraction for normal post links.
+yt-dlp
+imageio-ffmpeg
 
 # --- Tests ---
 pytest

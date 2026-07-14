@@ -11,6 +11,7 @@ export default function Uploader({ onUpload, onSample, samples, loading }) {
   const [dragActive, setDragActive] = useState(false);
   const [isCampaignAd, setIsCampaignAd] = useState(false);
   const [clipUrl, setClipUrl] = useState('');
+  const [strictClipMode, setStrictClipMode] = useState(false);
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -83,27 +84,35 @@ export default function Uploader({ onUpload, onSample, samples, loading }) {
       <div className="glass-card layer-card">
         <div className="layer-head">
           <span className="layer-title">Short Clip Link</span>
-          <span className="layer-sub">extracts a few frames and runs the still-image pipeline on each one</span>
+          <span className="layer-sub">paste a normal TikTok, YouTube, Instagram, or direct clip link</span>
         </div>
         <div className="url-uploader">
           <input
             type="url"
             value={clipUrl}
-            placeholder="https://example.com/clip.mp4"
+            placeholder="https://www.tiktok.com/... or https://www.youtube.com/watch?v=..."
             onChange={(e) => setClipUrl(e.target.value)}
           />
           <button
             type="button"
             className="btn"
-            onClick={() => onUpload({ clipUrl: clipUrl.trim() }, isCampaignAd)}
+            onClick={() => onUpload({ clipUrl: clipUrl.trim(), strictClipMode }, isCampaignAd)}
             disabled={!clipUrl.trim()}
           >
             Analyze clip
           </button>
         </div>
+        <label className="toggle-row" style={{ justifyContent: 'flex-start', marginTop: 0 }}>
+          <input
+            type="checkbox"
+            checked={strictClipMode}
+            onChange={(e) => setStrictClipMode(e.target.checked)}
+          />
+          Strict clip mode — sample more frames and weigh repeated suspicious frames more aggressively
+        </label>
         <p className="note-text">
-          Current phase: direct public video files only. The browser samples a few frames from short MP4,
-          WebM, or MOV clips, then runs the existing image analysis on each frame.
+          The server resolves the clip, samples a few frames, and runs the still-image trust pipeline on
+          each one. No raw `.mp4` link is required anymore.
         </p>
       </div>
 

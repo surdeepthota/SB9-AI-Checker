@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Uploader from './components/Uploader';
 import ReportCard from './components/ReportCard';
+import JudgmentCard from './components/JudgmentCard';
 import { LightboxProvider } from './components/Lightbox';
-import { analyzeFile, analyzeSample, listSamples } from './api';
-import { extractFramesFromClipUrl } from './media-url';
+import { analyzeClipUrl, analyzeFile, analyzeSample, listSamples } from './api';
 
 function App() {
   const [analysisResult, setAnalysisResult] = useState(null);
@@ -50,21 +50,20 @@ function App() {
   const handleUpload = (upload, isCampaignAd) => {
     if (upload?.clipUrl) {
       run(async () => {
-        const clip = await extractFramesFromClipUrl(upload.clipUrl);
-        clip.frames.forEach((frame) => trackObjectUrl(frame.previewUrl));
-        const reports = await Promise.all(
-          clip.frames.map(async (frame, index) => ({
-            frameNumber: index + 1,
-            seconds: frame.seconds,
-            label: frame.label,
-            previewUrl: frame.previewUrl,
-            data: await analyzeFile(frame.file, isCampaignAd),
-          })),
-        );
+        const clip = await analyzeClipUrl(upload.clipUrl, isCampaignAd, 5, Boolean(upload.strictClipMode));
+        const reports = clip.reports.map((frame) => ({
+          frameNumber: frame.frame_number,
+          seconds: frame.seconds,
+          label: frame.label,
+          previewUrl: frame.preview_data_url,
+          data: frame.analysis,
+        }));
         return {
           kind: 'clip',
           clipUrl: upload.clipUrl,
-          durationSeconds: clip.durationSeconds,
+          strictClipMode: Boolean(upload.strictClipMode),
+          durationSeconds: clip.duration_seconds,
+          clipSummary: clip.clip_summary,
           reports,
         };
       });
@@ -137,14 +136,43 @@ function App() {
                   <div className="kv"><span className="k">Frames analyzed</span><span className="v">{analysisResult.reports.length}</span></div>
                 </div>
                 <p className="note-text">
-                  Each frame below was analyzed independently with the existing still-image trust pipeline.
-                  Re-encoded clips and screenshots often strip provenance, so frame-level results should be read
-                  as evidence snapshots, not as proof about the full video.
+                  PeachCheck now aggregates the sampled frames into one clip-level judgment first, then shows the
+                  individual frame reports underneath as supporting evidence.
                 </p>
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <button className="btn ghost" onClick={handleReset}>Analyze another</button>
                 </div>
               </div>
+
+              {analysisResult.clipSummary?.judgment && (
+                <div className="glass-card layer-card">
+                  {(() => {
+                    const clipDecisionScore =
+                      analysisResult.clipSummary.clip_decision_score ?? analysisResult.clipSummary.average_frame_score ?? 0;
+                    return (
+                      <>
+                        <div className="layer-head">
+                          <span className="layer-title">Clip Summary</span>
+                          <span className="layer-sub">
+                            aggregate over {analysisResult.clipSummary.sampled_frames} frames
+                          </span>
+                        </div>
+                        <JudgmentCard judgment={analysisResult.clipSummary.judgment} embedded />
+                        <div className="kv-grid">
+                          <div className="kv"><span className="k">Clip decision score</span><span className="v">{clipDecisionScore.toFixed(2)}</span></div>
+                          <div className="kv"><span className="k">Average sampled frame</span><span className="v">{analysisResult.clipSummary.average_frame_score.toFixed(2)}</span></div>
+                          <div className="kv"><span className="k">Strongest frame</span><span className="v">{analysisResult.clipSummary.strongest_frame_score.toFixed(2)}</span></div>
+                          <div className="kv"><span className="k">Moderate/strong frames</span><span className="v">{analysisResult.clipSummary.suspicious_frames}</span></div>
+                          <div className="kv"><span className="k">Analysis mode</span><span className="v">{analysisResult.clipSummary.strict_mode ? 'strict' : 'standard'}</span></div>
+                        </div>
+                        <p className="note-text">
+                          The clip decision score is the decisive aggregate. The average sampled frame score is shown only as supporting context.
+                        </p>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
 
               {analysisResult.reports.map((frame) => (
                 <ReportCard
