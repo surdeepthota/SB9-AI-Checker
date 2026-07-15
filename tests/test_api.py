@@ -54,6 +54,13 @@ def test_unknown_sample_404s_and_traversal_is_blocked():
     )
 
 
+def test_sample_preview_serves_only_bundled_images():
+    response = client.get("/sample-file/peachcheck-ad-no-disclosure.png")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/")
+    assert client.get("/sample-file/nope.png").status_code == 404
+
+
 def test_packet_incomplete_questionnaire_is_422():
     response = client.post(
         "/packet",
@@ -88,6 +95,36 @@ def test_analyze_clip_url_rejects_invalid_scheme():
     )
     assert response.status_code == 422
     assert "http://" in response.json()["detail"]
+
+
+def test_clip_source_ai_disclosure_is_direct_evidence():
+    from peachcheck.clip_analysis import find_ai_disclosure
+
+    disclosure = find_ai_disclosure(
+        "This contains AI generated media. we know tiktok",
+        None,
+    )
+    assert disclosure == "This contains AI generated media. we know tiktok"
+    assert find_ai_disclosure("A discussion about AI policy", None) is None
+
+
+def test_clip_summary_preserves_explicit_ai_disclosure():
+    reports = [
+        {
+            "analysis": {
+                "trust_report": {
+                    "judgment": {"calibrated_score": 0.2, "band": "leans_authentic"}
+                }
+            }
+        }
+    ]
+    summary = __import__("app")._summarize_clip_reports(
+        reports,
+        source_ai_disclosure="This contains AI generated media.",
+    )
+    assert summary["clip_decision_score"] == 0.95
+    assert summary["judgment"]["band"] == "strong_signal"
+    assert summary["source_ai_disclosure"] == "This contains AI generated media."
 
 
 def test_analyze_clip_url_returns_frame_reports(monkeypatch, tmp_path):

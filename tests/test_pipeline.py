@@ -57,10 +57,10 @@ def test_report_language_never_says_fake(tiny_jpeg):
     assert "fake" not in serialized
 
 
-def test_headline_uses_canonical_unknown_provenance_phrasing(tiny_jpeg):
+def test_headline_uses_plain_unknown_source_phrasing(tiny_jpeg):
     report = run_pipeline(tiny_jpeg, "image/jpeg", ANALYZED_AT)
-    assert report.headline.startswith("No provenance found + ")
-    assert "here is the evidence" in report.headline
+    assert report.headline.startswith("The source is unknown.")
+    assert "checks found something unusual" in report.headline
 
 
 def test_forensics_alone_never_opens_the_reporting_path(tiny_jpeg):

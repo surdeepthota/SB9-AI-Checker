@@ -12,7 +12,7 @@ export default function ProvenanceCard({ provenance }) {
   const meta = STATE_META[provenance.state] || { label: provenance.state, badge: '' };
 
   return (
-    <div className="glass-card layer-card">
+    <div className="premium-card layer-card">
       <div className="layer-head">
         <span className="layer-title">Source Verification</span>
         <span className="chip deterministic">deterministic</span>

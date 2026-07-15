@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 from dataclasses import dataclass
 from io import BytesIO
 from urllib.parse import urlparse
@@ -29,6 +30,30 @@ class SampledClip:
     source_url: str
     duration_seconds: float
     frames: list[SampledFrame]
+    source_title: str | None = None
+    source_description: str | None = None
+    ai_disclosure: str | None = None
+
+
+_AI_DISCLOSURE_PATTERNS = (
+    re.compile(r"\bai[\s-]+generated\b", re.IGNORECASE),
+    re.compile(r"\bgenerated\s+(?:with|by|using)\s+(?:an?\s+)?ai\b", re.IGNORECASE),
+    re.compile(r"\bartificial[\s-]+intelligence[\s-]+generated\b", re.IGNORECASE),
+    re.compile(r"\bsynthetic[\s-]+media\b", re.IGNORECASE),
+)
+
+
+def find_ai_disclosure(title: str | None, description: str | None) -> str | None:
+    """Return the uploader/platform text that explicitly declares AI generation.
+
+    This is direct source evidence, not a visual-model inference. Deliberately narrow
+    phrases avoid treating a casual mention of "AI" as a generation disclosure.
+    """
+    for text in (title, description):
+        cleaned = " ".join((text or "").split())
+        if cleaned and any(pattern.search(cleaned) for pattern in _AI_DISCLOSURE_PATTERNS):
+            return cleaned[:500]
+    return None
 
 
 def _require_http_url(url: str) -> None:
@@ -49,7 +74,7 @@ def _png_data_url(png_bytes: bytes) -> str:
     return f"data:image/png;base64,{encoded}"
 
 
-def _download_clip(url: str, temp_dir: str) -> str:
+def _download_clip(url: str, temp_dir: str) -> tuple[str, dict]:
     try:
         import yt_dlp
     except Exception as exc:  # pragma: no cover
@@ -80,7 +105,7 @@ def _download_clip(url: str, temp_dir: str) -> str:
                     path = mp4_path
         if not os.path.exists(path):
             raise RuntimeError("Could not resolve a downloadable clip from that URL.")
-        return path
+        return path, info
 
 
 def _sample_frames_from_local_clip(
@@ -157,14 +182,23 @@ def resolve_and_sample_clip(
     max_duration_seconds: int = 90,
 ) -> SampledClip:
     _require_http_url(url)
-    clip_path = _download_clip(url, temp_dir)
+    clip_path, source_info = _download_clip(url, temp_dir)
     duration, frames = _sample_frames_from_local_clip(
         clip_path,
         temp_dir=temp_dir,
         frame_count=frame_count,
         max_duration_seconds=max_duration_seconds,
     )
-    return SampledClip(source_url=url, duration_seconds=duration, frames=frames)
+    title = source_info.get("title")
+    description = source_info.get("description")
+    return SampledClip(
+        source_url=url,
+        duration_seconds=duration,
+        frames=frames,
+        source_title=title,
+        source_description=description,
+        ai_disclosure=find_ai_disclosure(title, description),
+    )
 
 
 def clip_support_available() -> bool:

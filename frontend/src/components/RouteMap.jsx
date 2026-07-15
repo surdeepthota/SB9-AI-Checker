@@ -14,7 +14,7 @@ const LAYER_LABELS = {
 export default function RouteMap({ route }) {
   const byLayer = Object.fromEntries((route || []).map((step) => [step.layer, step]));
   return (
-    <div className="glass-card layer-card">
+    <div className="premium-card layer-card">
       <div className="layer-head">
         <span className="layer-title">Pipeline Route</span>
         <span className="layer-sub">each layer catches what the previous one misses</span>

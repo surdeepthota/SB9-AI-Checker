@@ -28,7 +28,7 @@ export default function Uploader({ onUpload, onSample, samples, loading }) {
 
   if (loading) {
     return (
-      <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '4rem' }}>
+      <div className="premium-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '4rem' }}>
         <div className="spinner" />
         <h3 style={{ margin: 0 }}>Running the trust pipeline…</h3>
         <p style={{ color: 'var(--text-secondary)', textAlign: 'center', maxWidth: '30rem' }}>
@@ -41,7 +41,7 @@ export default function Uploader({ onUpload, onSample, samples, loading }) {
 
   return (
     <>
-      <div className="glass-card">
+      <div className="premium-card">
         <form
           className={`dropzone ${dragActive ? 'active' : ''}`}
           onDragEnter={handleDrag}
@@ -117,7 +117,7 @@ export default function Uploader({ onUpload, onSample, samples, loading }) {
       </div>
 
       {samples?.length > 0 && (
-        <div className="glass-card layer-card">
+        <div className="premium-card layer-card">
           <div className="layer-head">
             <span className="layer-title">Or try the demo corpus</span>
             <span className="layer-sub">real C2PA test files + fictional ad mockups, ground truth known</span>

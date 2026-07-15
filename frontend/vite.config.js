@@ -12,6 +12,7 @@ export default defineConfig({
       '/analyze': backend,
       '/analyze-sample': backend,
       '/samples': backend,
+      '/sample-file': backend,
       '/packet': backend,
       '/api': backend,
     },

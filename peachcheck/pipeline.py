@@ -68,14 +68,13 @@ def build_identity(file_path: str, mime_type: str, analyzed_at_iso: str) -> File
 
 
 def _band_phrase(band: ConfidenceBand | None) -> str:
-    """Report-language wording for each confidence band. ABSTAIN reads as
-    "inconclusive" — never as a hedge toward "probably fake"."""
+    """Plain-language wording for each confidence band."""
     return {
-        ConfidenceBand.LEANS_AUTHENTIC: "the panel leans authentic",
-        ConfidenceBand.ABSTAIN: "inconclusive",
-        ConfidenceBand.MODERATE_SIGNAL: "a moderate signal",
-        ConfidenceBand.STRONG_SIGNAL: "a strong signal",
-    }.get(band, "inconclusive")
+        ConfidenceBand.LEANS_AUTHENTIC: "the checks lean toward a normal camera image",
+        ConfidenceBand.ABSTAIN: "there is not enough evidence",
+        ConfidenceBand.MODERATE_SIGNAL: "the checks found some signs of AI or editing",
+        ConfidenceBand.STRONG_SIGNAL: "the checks found strong signs of AI or editing",
+    }.get(band, "there is not enough evidence")
 
 
 def _headline(report: TrustReport) -> str:
@@ -89,15 +88,12 @@ def _headline(report: TrustReport) -> str:
     if prov.state == C2PAState.VALID_CAPTURE:
         signer = prov.signer or "an unidentified signer"
         return (
-            f"Intact Content Credentials signed by {signer}, with no AI-generation "
-            "assertion. No forensic analysis was needed."
+            f"The source record is valid and was signed by {signer}. It does not say AI was used, so no image guessing was needed."
         )
 
     if prov.state == C2PAState.TAMPERED:
         return (
-            "Cryptographic proof of post-signing alteration: this file's signed "
-            "manifest no longer matches its content "
-            f"({prov.failed_assertion or 'content hash mismatch'})."
+            "This file changed after it was signed. Its trusted source record no longer matches the file."
         )
 
     if prov.state == C2PAState.VALID_AI_ASSERTED:
@@ -105,12 +101,11 @@ def _headline(report: TrustReport) -> str:
             passed = sum(1 for c in report.measurement.checks if c.passed)
             total = len(report.measurement.checks)
             return (
-                "This file's own signed manifest declares it AI-generated. Measured "
-                f"against SB 9's disclosure standard: {passed} of {total} checks passed."
+                "The file's own signed record says AI was used. "
+                f"Its warning passed {passed} of {total} checks."
             )
         return (
-            "This file's own signed manifest declares it AI-generated. Disclosure "
-            "measurement did not produce results — see the measurement layer's note."
+            "The file's own signed record says AI was used, but PeachCheck could not finish checking its warning."
         )
 
     # UNTRUSTED — the canonical phrasing from the design doc.
@@ -118,11 +113,28 @@ def _headline(report: TrustReport) -> str:
         n = report.forensics.triggered_count
         m = report.forensics.available_count
         band = report.judgment.band if report.judgment else None
-        return (
-            f"No provenance found + {n} of {m} forensic indicators triggered — "
-            f"{_band_phrase(band)}; here is the evidence."
+        classifier = next(
+            (
+                signal
+                for signal in report.forensics.signals
+                if signal.name == "ml_classifier" and signal.available
+            ),
+            None,
         )
-    return "No provenance found — unknown provenance; here is the evidence."
+        if classifier is not None and band in (
+            ConfidenceBand.MODERATE_SIGNAL,
+            ConfidenceBand.STRONG_SIGNAL,
+        ):
+            band_phrase = _band_phrase(band)
+            return (
+                f"The AI image checker gave this file {classifier.score:.0%}. "
+                f"{band_phrase[0].upper() + band_phrase[1:]}. This is a clue, not proof. "
+                f"{n} of {m} checks found something unusual."
+            )
+        return (
+            f"The source is unknown. {n} of {m} checks found something unusual, and {_band_phrase(band)}."
+        )
+    return "The source is unknown. PeachCheck could not run the image checks."
 
 
 def run_pipeline(
