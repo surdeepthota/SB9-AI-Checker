@@ -13,7 +13,10 @@ out running the others, and none of them alone is treated as a verdict:
   3. FFT / frequency domain   — probabilistic, catches generator upsampling artifacts
   4. Pretrained ML classifier — probabilistic, least reliable (~80% SOTA accuracy),
                                  heaviest compute; NEVER trained in-house, only ever
-                                 pretrained weights pulled from Hugging Face
+                                 pretrained weights pulled from Hugging Face. Runs two
+                                 pretrained models and takes the higher reading — they
+                                 miss different generators, so this catches more than
+                                 either alone without raising real-photo scores.
 
 Fusion across these four is deliberately transparent and rules-based — not a learned
 meta-model. It uses a weighted panel score with a direct-evidence floor so a strong
@@ -54,9 +57,14 @@ KNOWN_AI_TOOL_TAGS = (
     "gpt-image",
 )
 
-# Hugging Face model for signal 4. Pretrained weights only [LOCKED] — never trained
-# in-house. Output labels for this model are "artificial" and "human".
+# Hugging Face models for signal 4. Pretrained weights only [LOCKED] — never trained
+# in-house. Two models run as an ensemble (max of both probabilities) because they
+# miss different things: umm-maybe/AI-image-detector's training data predates modern
+# generators like Gemini/Imagen and Midjourney v6, so it badly underscores their
+# output; haywoodsloan/ai-image-detector-deploy is more recent and catches some of
+# what the first misses. Neither alone is reliable — see check_ml_classifier.
 ML_MODEL_ID = "umm-maybe/AI-image-detector"
+ML_MODEL_ID_SECONDARY = "haywoodsloan/ai-image-detector-deploy"
 
 # Fusion weights [LOCKED as rules-based]. They produce the panel's corroborating score.
 # The direct AI-generation evidence is also retained as a floor: a high classifier
@@ -286,43 +294,68 @@ def check_fft(image_path: str, trigger_threshold: float = 0.03) -> ForensicSigna
 # --------------------------------------------------------------------------------
 # Signal 4: Pretrained ML classifier — probabilistic, least reliable
 # --------------------------------------------------------------------------------
-_ml_pipeline = None
-_ml_load_failed: Optional[str] = None
+_ml_pipelines: dict[str, object] = {}
+_ml_load_failed: dict[str, str] = {}
 _ml_init_lock = threading.Lock()
 
 
-def _load_ml_pipeline():
-    """Lazy, cached model load — ~350 MB of weights should download once, not per
+def _load_ml_pipeline(model_id: str):
+    """Lazy, cached model load per model id — weights should download once, not per
     request, and an environment without transformers/torch should degrade to an
     honest "signal unavailable" rather than crash the whole panel. The lock matters
     because endpoints run in FastAPI's threadpool: without it, two concurrent first
-    requests would both see None and load the weights twice.
+    requests would both see nothing cached and load the weights twice.
     """
-    global _ml_pipeline, _ml_load_failed
-    if _ml_pipeline is not None or _ml_load_failed is not None:
+    if model_id in _ml_pipelines or model_id in _ml_load_failed:
         return
     with _ml_init_lock:
-        if _ml_pipeline is not None or _ml_load_failed is not None:
+        if model_id in _ml_pipelines or model_id in _ml_load_failed:
             return
         try:
             from transformers import pipeline as hf_pipeline
 
-            _ml_pipeline = hf_pipeline("image-classification", model=ML_MODEL_ID)
+            _ml_pipelines[model_id] = hf_pipeline("image-classification", model=model_id)
         except Exception as exc:  # ImportError, download failure, etc.
-            _ml_load_failed = f"{type(exc).__name__}: {exc}"
+            _ml_load_failed[model_id] = f"{type(exc).__name__}: {exc}"
+
+
+def _artificial_probability(model_id: str, image_path: str) -> float | None:
+    """Run one model and return its "artificial" probability, or None if the model
+    isn't available in this environment.
+    """
+    _load_ml_pipeline(model_id)
+    pipeline_ = _ml_pipelines.get(model_id)
+    if pipeline_ is None:
+        return None
+    results = pipeline_(image_path)
+    return next(
+        (r["score"] for r in results if r["label"].lower() in ("artificial", "fake", "ai")),
+        0.0,
+    )
 
 
 def check_ml_classifier(image_path: str, trigger_threshold: float = 0.5) -> ForensicSignal:
-    """Score this image with a pretrained AI-image classifier from Hugging Face.
+    """Score this image with an ensemble of two pretrained AI-image classifiers.
 
-    Model policy [LOCKED]: pretrained weights only (umm-maybe/AI-image-detector) — we
-    never train our own. Real-world state-of-the-art for this task is only ~80%
-    accurate outside curated benchmarks, which is why this is the *least* trusted
-    signal in the panel and, per judgment.py's gate rule, can never by itself justify
-    the SB 9 reporting path.
+    Model policy [LOCKED]: pretrained weights only — we never train our own. A single
+    pretrained detector badly underscores images from generators newer than its
+    training data (e.g. umm-maybe/AI-image-detector can score a real Gemini-generated
+    image as low as ~9% "artificial"); running a second, more recent model and taking
+    the max of both catches some of what either one alone misses, without raising
+    real-photo scores (verified against the demo corpus's camera captures). This is
+    still the *least* trusted signal in the panel — real-world state-of-the-art for
+    this task is only ~80% accurate outside curated benchmarks even with an ensemble
+    — and, per judgment.py's gate rule, can never by itself justify the SB 9
+    reporting path.
     """
-    _load_ml_pipeline()
-    if _ml_pipeline is None:
+    scored = {
+        model_id: _artificial_probability(model_id, image_path)
+        for model_id in (ML_MODEL_ID, ML_MODEL_ID_SECONDARY)
+    }
+    available_scores = {k: v for k, v in scored.items() if v is not None}
+
+    if not available_scores:
+        failures = "; ".join(f"{k}: {v}" for k, v in _ml_load_failed.items())
         return ForensicSignal(
             name="ml_classifier",
             triggered=False,
@@ -331,18 +364,15 @@ def check_ml_classifier(image_path: str, trigger_threshold: float = 0.5) -> Fore
             score=0.0,
             available=False,
             explanation=(
-                "Classifier not run — model unavailable in this environment "
-                f"({_ml_load_failed}). The panel's other signals still apply; "
+                "Classifier not run — both models are unavailable in this environment "
+                f"({failures}). The panel's other signals still apply; "
                 "the fused score renormalizes over what actually ran."
             ),
         )
 
-    results = _ml_pipeline(image_path)
-    artificial_prob = next(
-        (r["score"] for r in results if r["label"].lower() in ("artificial", "fake", "ai")),
-        0.0,
-    )
+    best_model_id, artificial_prob = max(available_scores.items(), key=lambda kv: kv[1])
     triggered = artificial_prob > trigger_threshold
+    ran_both = len(available_scores) > 1
     return ForensicSignal(
         name="ml_classifier",
         triggered=triggered,
@@ -350,9 +380,17 @@ def check_ml_classifier(image_path: str, trigger_threshold: float = 0.5) -> Fore
         threshold=trigger_threshold,
         score=round(artificial_prob, 4),
         explanation=(
-            f"Pretrained classifier ({ML_MODEL_ID}) scores this "
-            f"{artificial_prob:.0%} likely AI-generated. Treated as one indicator, "
-            "never a fact — detectors of this kind run ~80% accuracy in the wild."
+            (
+                f"Two pretrained classifiers scored this image; the higher reading "
+                f"({best_model_id.split('/')[-1]}) put it at {artificial_prob:.0%} "
+                "likely AI-generated."
+                if ran_both
+                else f"Pretrained classifier ({best_model_id}) scores this "
+                f"{artificial_prob:.0%} likely AI-generated."
+            )
+            + " Treated as one indicator, never a fact — detectors of this kind run "
+            "~80% accuracy in the wild, and can score notably lower on images from "
+            "generators newer than their training data."
         ),
     )
 

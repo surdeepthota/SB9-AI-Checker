@@ -45,7 +45,7 @@ trust-report JSON contract (`peachcheck/schema.py`) and the UI only ever *reads*
 |---|---|---|
 | **Provenance** (`layers/provenance.py`) | deterministic | Validates the C2PA manifest: COSE signature, trust list, recomputed content hashes. Routes to one of four states — see below. |
 | **Measurement** (`layers/measurement.py`) | deterministic | OCRs the ad and measures its disclosure against SB 9 §21-5-91/92: content items present, text ≥ 30% of frame height, contrast vs the ad's own text. Outputs numbers + an annotated evidence image, never opinions. |
-| **Forensics** (`layers/forensics.py`) | probabilistic | Four independent indicators, run only on "unknown provenance": EXIF/metadata rules, team-written Error Level Analysis, team-written FFT frequency analysis, and a pretrained Hugging Face classifier. Fused with fixed, readable weights — no learned meta-model. |
+| **Forensics** (`layers/forensics.py`) | probabilistic | Four independent indicators, run only on "unknown provenance": EXIF/metadata rules, team-written Error Level Analysis, team-written FFT frequency analysis, and an ensemble of two pretrained Hugging Face classifiers (the higher reading is used — they miss different generators). Fused with fixed, readable weights — no learned meta-model. |
 | **Judgment** (`layers/judgment.py`) | probabilistic | Maps the fused score into four calibrated-confidence bands. **Abstain (0.30–0.70) is deliberately the widest band** — "insufficient evidence" is a legitimate verdict. |
 | **Action** (`layers/action.py`) | human decision | Computes the 90-day statutory window against Georgia's election calendar, walks the user through the §21-2-605(d) exemption questionnaire (satire/parody/art/journalism), captures the publisher, and assembles an evidence packet for the State Election Board. There is deliberately **no "submit" button** — no SEB API exists, and pretending otherwise would be dishonest. |
 
@@ -149,8 +149,10 @@ The load-bearing analysis logic is team-written:
   the entire React UI.
 
 Libraries do what libraries should: `c2pa-python` verifies COSE signatures,
-`Pillow`/`numpy` move pixels, `easyocr`/`pytesseract` read text, `transformers` runs a
-pretrained classifier (never trained in-house), `FastAPI`/`React` serve it all.
+`Pillow`/`numpy` move pixels, `easyocr`/`pytesseract` read text, `transformers` runs
+two pretrained classifiers — `umm-maybe/AI-image-detector` and
+`haywoodsloan/ai-image-detector-deploy` (never trained in-house) — `FastAPI`/`React`
+serve it all.
 
 ## Honest limits (current phase)
 
@@ -161,6 +163,11 @@ pretrained classifier (never trained in-house), `FastAPI`/`React` serve it all.
   judgment card).
 - **The ML classifier is the panel's weakest signal** and is capped at 40% of the
   fused score by design. Its ~80% real-world accuracy is stated in the report itself.
+  Running two pretrained models and taking the higher reading catches more than
+  either alone, but both were benchmarked against a real Gemini-generated image and
+  still scored it under 10% "artificial" — recent, photorealistic generators remain a
+  known blind spot for open pretrained detectors, which is exactly why this signal is
+  capped and gated rather than trusted on its own.
 - **Impersonated-person disclosure** (§21-5-91(a)(2)) can't be measured automatically
   — it requires knowing who appears in the ad. Flagged for the human filer.
 - **The demo AI-asserted ads are signed with the standard C2PA test certificate**, so

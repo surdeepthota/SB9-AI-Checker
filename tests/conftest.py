@@ -13,8 +13,12 @@ def no_ml_model(request, monkeypatch):
     """Skip the Hugging Face model load in unit tests (not in `-m corpus` runs)."""
     if "corpus" in request.keywords:
         return
-    monkeypatch.setattr(forensics, "_ml_pipeline", None)
-    monkeypatch.setattr(forensics, "_ml_load_failed", "disabled in unit tests")
+    monkeypatch.setattr(forensics, "_ml_pipelines", {})
+    monkeypatch.setattr(
+        forensics,
+        "_ml_load_failed",
+        {forensics.ML_MODEL_ID: "disabled in unit tests", forensics.ML_MODEL_ID_SECONDARY: "disabled in unit tests"},
+    )
 
 
 @pytest.fixture
