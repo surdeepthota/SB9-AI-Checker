@@ -182,11 +182,14 @@ def render_ela_heatmap(diff: "np.ndarray") -> "Image.Image":
     return Image.fromarray(amplified)
 
 
-def check_ela(image_path: str, trigger_threshold: float = 25.0) -> ForensicSignal:
+def check_ela(image_path: str, trigger_threshold: float = 0.35) -> ForensicSignal:
     """Flag when the ELA residual's mean intensity crosses `trigger_threshold`.
 
-    Threshold is a placeholder pending calibration against the labeled corpus (see
-    judgment.py) — the number itself isn't load-bearing yet, the *mechanism* is.
+    Threshold calibrated against the demo corpus (see corpus/metadata.csv): the
+    "untrusted" samples measure mean residuals of 0.22-0.48, and the synthetic
+    splice fixture in tests/test_forensics.py measures ~1.0 against a ~0.0 uniform
+    baseline. The old placeholder (25.0) sat far above every value either dataset
+    can produce, so the signal could never trigger regardless of input.
     """
     diff = compute_ela(image_path)
     mean_error = float(diff.mean())
@@ -249,10 +252,16 @@ def render_fft_spectrum(magnitude: "np.ndarray") -> "Image.Image":
     return Image.fromarray(scaled)
 
 
-def check_fft(image_path: str, trigger_threshold: float = 0.15) -> ForensicSignal:
+def check_fft(image_path: str, trigger_threshold: float = 0.03) -> ForensicSignal:
     """Flag when high-frequency energy exceeds what natural sensor noise typically
     produces. Known weakness: newer generators specifically suppress this artifact, so
     this signal skews toward catching cheaper/older fakes rather than SOTA ones.
+
+    Threshold calibrated against the demo corpus: "untrusted" samples measure
+    high-frequency ratios of 0.023-0.036, tightly clustered just under the old
+    placeholder's headroom. 0.15 (a value only the synthetic noise fixture in
+    tests/test_forensics.py ever reaches) left the signal dormant on every real
+    image; 0.03 sits inside the corpus's own spread so the signal can actually fire.
     """
     magnitude = compute_fft_spectrum(image_path)
     high_freq_ratio = compute_fft_high_freq_energy(magnitude)
