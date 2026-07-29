@@ -15,9 +15,10 @@ out running the others, and none of them alone is treated as a verdict:
                                  heaviest compute; NEVER trained in-house, only ever
                                  pretrained weights pulled from Hugging Face
 
-Fusion across these four is deliberately a transparent, rules-based weighted sum —
-not a learned meta-model — so a judge (or a teammate) can read the exact arithmetic
-that turns four numbers into one score. See fuse_signals() at the bottom.
+Fusion across these four is deliberately transparent and rules-based — not a learned
+meta-model. It uses a weighted panel score with a direct-evidence floor so a strong
+AI-classifier result or explicit generator tag cannot be incorrectly averaged away by
+quiet splice checks. See fuse_signals() at the bottom.
 """
 
 from __future__ import annotations
@@ -57,10 +58,10 @@ KNOWN_AI_TOOL_TAGS = (
 # in-house. Output labels for this model are "artificial" and "human".
 ML_MODEL_ID = "umm-maybe/AI-image-detector"
 
-# Fusion weights [LOCKED as rules-based]: the classifier gets the largest single weight
-# because it is the only signal that directly targets "was this generated," but it is
-# deliberately kept under 50% so no single probabilistic model can dominate the panel.
-# When a signal is unavailable, remaining weights are renormalized (see fuse_signals).
+# Fusion weights [LOCKED as rules-based]. They produce the panel's corroborating score.
+# The direct AI-generation evidence is also retained as a floor: a high classifier
+# score or explicit generator tag must not be treated as negative merely because ELA
+# (a splice detector) stays quiet on a fully generated image.
 FUSION_WEIGHTS = {
     "metadata": 0.20,
     "error_level_analysis": 0.25,
@@ -357,26 +358,39 @@ def check_ml_classifier(image_path: str, trigger_threshold: float = 0.5) -> Fore
 
 
 # --------------------------------------------------------------------------------
-# Fusion — transparent, rules-based weighted sum (not a learned meta-model)
+# Fusion — transparent weighted panel + direct-evidence floor (not a learned meta-model)
 # --------------------------------------------------------------------------------
 def fuse_signals(signals: list[ForensicSignal]) -> ForensicsBlock:
-    """Combine the panel into one raw score with fixed, readable weights.
+    """Combine the panel with fixed, readable rules.
 
-    The whole rule: fused = Σ (weight_i × score_i) / Σ weight_i, summed over the
-    signals that actually ran. That's it — no learned meta-model, so the exact
-    arithmetic behind any fused score can be recomputed by hand from the report.
-    The fused score then goes to judgment.py for calibration and banding; this layer
-    never itself renders a verdict.
+    First compute the renormalized weighted panel score. Then preserve the strongest
+    *direct* AI-generation evidence as a floor: the ML classifier's own probability,
+    or 1.0 when metadata explicitly names an AI generator. Quiet ELA/FFT results are
+    not proof of authenticity and therefore cannot suppress that direct evidence.
+
+    fused = max(weighted_panel, ml_probability, explicit_generator_tag)
+
+    This remains auditable by hand and does not turn the result into a fact: the
+    reporting gate still requires deterministic corroboration outside a probabilistic
+    classifier.
     """
     available = [s for s in signals if s.available]
     total_weight = sum(FUSION_WEIGHTS.get(s.name, 0.0) for s in available)
     if not available or total_weight == 0:
-        fused = None
+        weighted_panel = None
     else:
-        fused = round(
+        weighted_panel = round(
             sum(FUSION_WEIGHTS.get(s.name, 0.0) * s.score for s in available) / total_weight,
             4,
         )
+
+    direct_floors = [
+        s.score
+        for s in available
+        if s.name == "ml_classifier" or metadata_names_ai_tool(s)
+    ]
+    candidates = ([weighted_panel] if weighted_panel is not None else []) + direct_floors
+    fused = round(max(candidates), 4) if candidates else None
 
     weights_used = ", ".join(
         f"{s.name}×{FUSION_WEIGHTS.get(s.name, 0.0):.2f}" for s in available
@@ -385,8 +399,9 @@ def fuse_signals(signals: list[ForensicSignal]) -> ForensicsBlock:
         signals=signals,
         fused_score=fused,
         fusion_rule=(
-            f"Weighted sum over signals that ran ({weights_used}), renormalized to "
-            "the weights of available signals. Fixed weights, no learned fusion."
+            f"Renormalized weighted panel ({weights_used}); direct AI evidence "
+            "(classifier probability or explicit generator tag) is a floor and cannot "
+            "be reduced by quiet splice/frequency checks. Fixed rules, no learned fusion."
         ),
     )
 

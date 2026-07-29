@@ -7,14 +7,12 @@ const BAND_META = {
   strong_signal: { label: 'Strong Signal', badge: 'danger' },
 };
 
-export default function JudgmentCard({ judgment, embedded = false }) {
+export default function JudgmentCard({ judgment }) {
   if (!judgment) return null;
   const meta = BAND_META[judgment.band] || { label: judgment.band, badge: '' };
   const score = judgment.calibrated_score ?? 0;
-  const containerClassName = embedded ? 'layer-card' : 'glass-card layer-card';
-
   return (
-    <div className={containerClassName}>
+    <div className="premium-card layer-card">
       <div className="layer-head">
         <span className="layer-title">Overall Confidence</span>
         <span className="chip probabilistic">probabilistic</span>

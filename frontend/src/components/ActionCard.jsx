@@ -42,7 +42,7 @@ export default function ActionCard({ action, trustReport }) {
   };
 
   return (
-    <div className="glass-card layer-card">
+    <div className="premium-card layer-card">
       <div className="layer-head">
         <span className="layer-title">Take Action</span>
         <span className="chip human">human decision</span>

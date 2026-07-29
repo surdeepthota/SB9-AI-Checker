@@ -5,7 +5,7 @@ export default function IdentityPanel({ identity, exif }) {
   const exifEntries = Object.entries(exif || {});
 
   return (
-    <div className="glass-card layer-card">
+    <div className="premium-card layer-card">
       <div className="layer-head">
         <span className="layer-title">File Identity</span>
         <span className="layer-sub">schema v{identity.schema_version}</span>

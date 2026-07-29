@@ -96,7 +96,7 @@ def _signal(name, score, available=True):
     )
 
 
-def test_fusion_is_the_documented_weighted_average():
+def test_direct_classifier_evidence_is_not_averaged_away():
     signals = [
         _signal("metadata", 1.0),
         _signal("error_level_analysis", 0.5),
@@ -104,8 +104,20 @@ def test_fusion_is_the_documented_weighted_average():
         _signal("ml_classifier", 0.8),
     ]
     block = fuse_signals(signals)
-    expected = (0.20 * 1.0 + 0.25 * 0.5 + 0.15 * 0.0 + 0.40 * 0.8) / 1.0
-    assert abs(block.fused_score - expected) < 1e-6
+    # Both the classifier (0.8) and explicit AI-tool metadata (1.0) are direct
+    # evidence floors; quiet indirect signals cannot dilute either one.
+    assert block.fused_score == 1.0
+
+
+def test_strong_classifier_survives_quiet_splice_and_fft_checks():
+    signals = [
+        _signal("metadata", 0.6),
+        _signal("error_level_analysis", 0.008),
+        _signal("fft_frequency_domain", 0.113),
+        _signal("ml_classifier", 0.92),
+    ]
+    block = fuse_signals(signals)
+    assert block.fused_score == 0.92
 
 
 def test_fusion_renormalizes_when_classifier_unavailable():

@@ -135,7 +135,7 @@ class ForensicsBlock:
     """
 
     signals: list[ForensicSignal] = field(default_factory=list)
-    fused_score: Optional[float] = None  # weighted combination, see forensics.fuse_signals
+    fused_score: Optional[float] = None  # rules-based fusion, see forensics.fuse_signals
     fusion_rule: Optional[str] = None  # human-readable statement of the exact weights used
 
     @property

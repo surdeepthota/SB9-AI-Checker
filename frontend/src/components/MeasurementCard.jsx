@@ -24,7 +24,7 @@ export default function MeasurementCard({ measurement }) {
   const evidence = measurement.checks?.find((c) => c.evidence_ref)?.evidence_ref;
 
   return (
-    <div className="glass-card layer-card">
+    <div className="premium-card layer-card">
       <div className="layer-head">
         <span className="layer-title">Disclosure Check</span>
         <span className="chip deterministic">deterministic</span>

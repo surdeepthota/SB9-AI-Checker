@@ -14,7 +14,7 @@ export default function ReportCard({ data, previewUrl, onReset, title = null, sh
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.4rem' }}>
-      <div className="glass-card headline-banner" style={{ display: 'flex', gap: '1.4rem', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+      <div className="premium-card headline-banner" style={{ display: 'flex', gap: '1.4rem', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 380px' }}>
           {title && <div className="frame-label">{title}</div>}
           {report.headline}

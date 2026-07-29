@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -88,7 +89,11 @@ def _clip_band_for_score(score: float, strict_mode: bool) -> ConfidenceBand:
     return ConfidenceBand.STRONG_SIGNAL
 
 
-def _summarize_clip_reports(reports: list[dict], strict_mode: bool = False) -> dict | None:
+def _summarize_clip_reports(
+    reports: list[dict],
+    strict_mode: bool = False,
+    source_ai_disclosure: str | None = None,
+) -> dict | None:
     trust_reports = [item["analysis"]["trust_report"] for item in reports]
     judgments = [report.get("judgment") for report in trust_reports if report.get("judgment")]
     if not judgments:
@@ -126,6 +131,10 @@ def _summarize_clip_reports(reports: list[dict], strict_mode: bool = False) -> d
             aggregated_score += 0.05
         if strongest >= 0.85 and average_score >= 0.5:
             aggregated_score += 0.04
+    if source_ai_disclosure:
+        # An uploader/platform disclosure directly answers the generation question.
+        # Keep the frame-model score visible, but do not let it override that claim.
+        aggregated_score = max(aggregated_score, 0.95)
     aggregated_score = max(0.0, min(1.0, round(aggregated_score, 4)))
 
     judgment = build_judgment(
@@ -139,6 +148,11 @@ def _summarize_clip_reports(reports: list[dict], strict_mode: bool = False) -> d
                 if strict_mode
                 else "The clip summary weights the strongest consistent frames more heavily than any one frame."
             )
+            + (
+                f' Source metadata explicitly discloses AI generation: "{source_ai_disclosure}"'
+                if source_ai_disclosure
+                else ""
+            )
         ),
     )
     judgment.band = _clip_band_for_score(judgment.calibrated_score or 0.0, strict_mode)
@@ -150,6 +164,7 @@ def _summarize_clip_reports(reports: list[dict], strict_mode: bool = False) -> d
         "strongest_frame_score": round(strongest, 4),
         "clip_decision_score": round(judgment.calibrated_score or 0.0, 4),
         "suspicious_frames": suspicious_frames,
+        "source_ai_disclosure": source_ai_disclosure,
         "band_counts": dict(band_counts),
         "judgment": _judgment_to_dict(judgment),
     }
@@ -205,10 +220,25 @@ def list_samples():
                     {
                         "filename": name,
                         "expected_state": meta.get("c2pa_state", ""),
+                        "ground_truth_label": meta.get("ground_truth_label", ""),
+                        "source_url": meta.get("source_url", ""),
+                        "generator_or_camera": meta.get("generator_or_camera", ""),
+                        "laundering_applied": meta.get("laundering_applied", ""),
                         "notes": meta.get("notes", ""),
                     }
                 )
     return {"samples": samples}
+
+
+@app.get("/sample-file/{filename}")
+def sample_file(filename: str):
+    """Serve only a named image from the bundled test corpus for the examples page."""
+    safe_name = os.path.basename(filename)
+    file_path = os.path.join(SAMPLES_DIR, safe_name)
+    if safe_name != filename or not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Sample image not found.")
+    mime = "image/png" if safe_name.lower().endswith(".png") else "image/jpeg"
+    return FileResponse(file_path, media_type=mime)
 
 
 class SampleRequest(BaseModel):
@@ -252,8 +282,15 @@ def analyze_clip_url(request: ClipUrlRequest):
             )
         return {
             "clip_url": sampled.source_url,
+            "source_title": sampled.source_title,
+            "source_description": sampled.source_description,
+            "source_ai_disclosure": sampled.ai_disclosure,
             "duration_seconds": sampled.duration_seconds,
-            "clip_summary": _summarize_clip_reports(reports, strict_mode=request.strict_mode),
+            "clip_summary": _summarize_clip_reports(
+                reports,
+                strict_mode=request.strict_mode,
+                source_ai_disclosure=sampled.ai_disclosure,
+            ),
             "reports": reports,
         }
     except ValueError as exc:

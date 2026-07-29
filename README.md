@@ -138,8 +138,10 @@ The load-bearing analysis logic is team-written:
 - **SB 9 threshold arithmetic** (`measurement.py`) — height/duration/contrast checks,
   WCAG contrast math, disclosure-content detection rules (auditable regexes, not a
   classifier).
-- **Rules-based fusion** (`forensics.fuse_signals`) — a fixed weighted sum you can
-  recompute by hand from any report.
+- **Rules-based fusion** (`forensics.fuse_signals`) — a fixed weighted panel with a
+  direct-evidence floor, so strong classifier evidence is not diluted by unrelated
+  quiet splice checks; the arithmetic remains readable directly in the code and can
+  be recomputed by hand from any report.
 - **Calibration banding + the reporting gate** (`judgment.py`).
 - **Perceptual dHash** (`pipeline.compute_dhash`) — 64-bit difference hash that
   survives re-encoding.

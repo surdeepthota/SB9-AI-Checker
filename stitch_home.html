@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PeachCheck - Professional Deepfake Detection</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600&amp;family=Hanken+Grotesk:wght@600;700&amp;family=Inter:wght@400&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-tertiary-fixed-variant": "#004f54",
+                    "on-secondary": "#420089",
+                    "surface-container-highest": "#32343e",
+                    "secondary-fixed-dim": "#d6baff",
+                    "tertiary-fixed-dim": "#00dbe9",
+                    "primary-container": "#ff8a75",
+                    "surface-container-lowest": "#0c0e17",
+                    "surface-variant": "#32343e",
+                    "on-surface-variant": "#dcc0bb",
+                    "surface-container-low": "#191b24",
+                    "surface": "#11131c",
+                    "primary-fixed": "#ffdad4",
+                    "on-tertiary-fixed": "#002022",
+                    "primary-fixed-dim": "#ffb4a6",
+                    "on-primary": "#601308",
+                    "secondary-fixed": "#ecdcff",
+                    "on-secondary-container": "#caa9ff",
+                    "background": "#11131c",
+                    "on-tertiary": "#00363a",
+                    "outline": "#a48b87",
+                    "on-primary-container": "#752215",
+                    "on-secondary-fixed": "#280057",
+                    "on-primary-fixed-variant": "#7f291c",
+                    "surface-container-high": "#282933",
+                    "on-background": "#e1e1ef",
+                    "on-secondary-fixed-variant": "#5f00c0",
+                    "primary": "#ffb4a6",
+                    "error-container": "#93000a",
+                    "surface-tint": "#ffb4a6",
+                    "error": "#ffb4ab",
+                    "outline-variant": "#56423e",
+                    "surface-bright": "#373943",
+                    "tertiary-container": "#00bdc9",
+                    "on-primary-fixed": "#3f0300",
+                    "surface-container": "#1d1f29",
+                    "on-error": "#690005",
+                    "secondary-container": "#6207c3",
+                    "on-surface": "#e1e1ef",
+                    "inverse-surface": "#e1e1ef",
+                    "tertiary": "#00dbe9",
+                    "inverse-on-surface": "#2e303a",
+                    "on-error-container": "#ffdad6",
+                    "tertiary-fixed": "#7df4ff",
+                    "secondary": "#d6baff",
+                    "inverse-primary": "#9f4030",
+                    "on-tertiary-container": "#00474c",
+                    "surface-dim": "#11131c"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "container-max": "1280px",
+                    "margin-desktop": "40px",
+                    "base": "8px",
+                    "margin-mobile": "16px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "headline-md": [
+                            "Hanken Grotesk"
+                    ],
+                    "body-md": [
+                            "Inter"
+                    ],
+                    "display-lg-mobile": [
+                            "Hanken Grotesk"
+                    ],
+                    "label-caps": [
+                            "Geist"
+                    ],
+                    "body-lg": [
+                            "Inter"
+                    ],
+                    "mono-data": [
+                            "Geist"
+                    ],
+                    "display-lg": [
+                            "Hanken Grotesk"
+                    ]
+            },
+            "fontSize": {
+                    "headline-md": [
+                            "24px",
+                            {
+                                    "lineHeight": "32px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "body-md": [
+                            "16px",
+                            {
+                                    "lineHeight": "24px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "display-lg-mobile": [
+                            "32px",
+                            {
+                                    "lineHeight": "40px",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "label-caps": [
+                            "12px",
+                            {
+                                    "lineHeight": "16px",
+                                    "letterSpacing": "0.1em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "body-lg": [
+                            "18px",
+                            {
+                                    "lineHeight": "28px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "mono-data": [
+                            "14px",
+                            {
+                                    "lineHeight": "20px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "display-lg": [
+                            "48px",
+                            {
+                                    "lineHeight": "56px",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "700"
+                            }
+                    ]
+            }
+        },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+          font-family: 'Material Symbols Outlined';
+          font-weight: normal;
+          font-style: normal;
+          font-size: 24px;  /* Preferred icon size */
+          display: inline-block;
+          line-height: 1;
+          text-transform: none;
+          letter-spacing: normal;
+          word-wrap: normal;
+          white-space: nowrap;
+          direction: ltr;
+        }
+        
+        /* Custom glow effects */
+        .glow-primary {
+            box-shadow: 0 0 20px rgba(255, 180, 166, 0.2);
+        }
+        .glow-tertiary {
+            box-shadow: 0 0 20px rgba(0, 219, 233, 0.2);
+        }
+        
+        /* Glassmorphism utility */
+        .glass-panel {
+            background: rgba(26, 29, 41, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-md min-h-screen flex flex-col pt-[72px] pb-[80px]">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-margin-mobile py-4 bg-surface/80 dark:bg-surface/80 backdrop-blur-xl border-b border-outline-variant/20">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary dark:text-primary">phonelink_setup</span>
+<span class="font-headline-md text-headline-md font-bold text-primary dark:text-primary tracking-tight">PeachCheck</span>
+</div>
+<button class="bg-primary text-on-primary font-label-caps text-label-caps px-4 py-2 rounded-full hover:opacity-90 transition-opacity active:scale-95">
+            Start Analyzing
+        </button>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow flex flex-col gap-[64px] px-margin-mobile">
+<!-- Hero Section -->
+<section class="flex flex-col items-center text-center mt-[40px]">
+<div class="mb-8 relative w-full aspect-square max-w-[280px] mx-auto rounded-full bg-surface-container-low flex items-center justify-center glow-tertiary">
+<!-- Abstract scanning visualization -->
+<div class="absolute inset-0 rounded-full border border-tertiary/30 animate-ping" style="animation-duration: 3s;"></div>
+<div class="absolute inset-4 rounded-full border border-primary/20"></div>
+<div class="z-10 flex flex-col items-center">
+<span class="material-symbols-outlined text-[80px] text-primary" style="font-variation-settings: 'FILL' 1;">policy</span>
+<div class="h-1 w-[120px] bg-tertiary mt-4 rounded-full shadow-[0_0_10px_#00dbe9] absolute animate-[pulse_2s_ease-in-out_infinite] top-1/2 -translate-y-1/2"></div>
+</div>
+</div>
+<h1 class="font-display-lg-mobile text-display-lg-mobile text-on-background mb-4">
+                Verify the Truth in a World of Fakes.
+            </h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-8 max-w-md">
+                Professional-grade deepfake detection and forensic media analysis powered by blockchain provenance.
+            </p>
+<button class="bg-primary text-on-primary font-headline-md text-headline-md text-[18px] px-8 py-3 rounded-full hover:bg-primary-fixed-dim transition-colors active:scale-95 glow-primary w-full max-w-[280px]">
+                Start Analyzing
+            </button>
+</section>
+<!-- Features Bento Grid -->
+<section class="flex flex-col gap-4">
+<!-- Deepfake Detection Card -->
+<div class="glass-panel rounded-xl p-6 flex flex-col gap-4 relative overflow-hidden group">
+<div class="absolute -right-10 -top-10 w-32 h-32 bg-primary/10 rounded-full blur-2xl group-hover:bg-primary/20 transition-colors"></div>
+<div class="flex items-center gap-3">
+<div class="bg-surface-container-high p-2 rounded-lg">
+<span class="material-symbols-outlined text-primary">face</span>
+</div>
+<h3 class="font-headline-md text-[20px] leading-tight text-on-surface">Deepfake Detection</h3>
+</div>
+<p class="font-body-md text-on-surface-variant">AI-powered scan for facial manipulation, inconsistencies, and synthetic generation artifacts.</p>
+<div class="mt-2 flex items-center gap-2 font-mono-data text-mono-data text-tertiary">
+<span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
+                    SCAN.READY
+                </div>
+</div>
+<!-- Forensic Analysis Card -->
+<div class="glass-panel rounded-xl p-6 flex flex-col gap-4 relative overflow-hidden group">
+<div class="absolute -left-10 -bottom-10 w-32 h-32 bg-secondary/10 rounded-full blur-2xl group-hover:bg-secondary/20 transition-colors"></div>
+<div class="flex items-center gap-3">
+<div class="bg-surface-container-high p-2 rounded-lg">
+<span class="material-symbols-outlined text-secondary">analytics</span>
+</div>
+<h3 class="font-headline-md text-[20px] leading-tight text-on-surface">Forensic Analysis</h3>
+</div>
+<p class="font-body-md text-on-surface-variant">Frame-by-frame metadata extraction and deep artifact inspection for media integrity.</p>
+</div>
+<!-- Blockchain Provenance Card -->
+<div class="glass-panel rounded-xl p-6 flex flex-col gap-4 relative overflow-hidden group">
+<div class="absolute -right-10 -bottom-10 w-32 h-32 bg-tertiary/10 rounded-full blur-2xl group-hover:bg-tertiary/20 transition-colors"></div>
+<div class="flex items-center gap-3">
+<div class="bg-surface-container-high p-2 rounded-lg">
+<span class="material-symbols-outlined text-tertiary">link</span>
+</div>
+<h3 class="font-headline-md text-[20px] leading-tight text-on-surface">Blockchain Provenance</h3>
+</div>
+<p class="font-body-md text-on-surface-variant">Immutable cryptographic verification of content origin and modification history.</p>
+</div>
+</section>
+<!-- How it Works (Interactive Process) -->
+<section class="flex flex-col gap-6">
+<h2 class="font-headline-md text-headline-md text-on-background text-center">Verification Protocol</h2>
+<div class="flex flex-col gap-2 relative">
+<!-- Connecting Line -->
+<div class="absolute left-[27px] top-8 bottom-8 w-[2px] bg-surface-container-high z-0"></div>
+<!-- Step 1 -->
+<div class="flex gap-4 items-start relative z-10">
+<div class="w-14 h-14 rounded-full bg-surface-container border border-outline-variant/30 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-surface-variant">upload_file</span>
+</div>
+<div class="pt-2 pb-6">
+<h4 class="font-label-caps text-label-caps text-on-surface">01. UPLOAD</h4>
+<p class="font-body-md text-on-surface-variant text-[14px] mt-1">Submit media file to the secure forensic locker.</p>
+</div>
+</div>
+<!-- Step 2 -->
+<div class="flex gap-4 items-start relative z-10">
+<div class="w-14 h-14 rounded-full bg-primary-container/20 border border-primary/30 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,180,166,0.15)]">
+<span class="material-symbols-outlined text-primary">radar</span>
+</div>
+<div class="pt-2 pb-6">
+<h4 class="font-label-caps text-label-caps text-primary">02. SCAN</h4>
+<p class="font-body-md text-on-surface-variant text-[14px] mt-1">Multi-layer analysis for synthetic manipulation.</p>
+</div>
+</div>
+<!-- Step 3 -->
+<div class="flex gap-4 items-start relative z-10">
+<div class="w-14 h-14 rounded-full bg-surface-container border border-outline-variant/30 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-tertiary">verified</span>
+</div>
+<div class="pt-2">
+<h4 class="font-label-caps text-label-caps text-on-surface">03. VERIFY</h4>
+<p class="font-body-md text-on-surface-variant text-[14px] mt-1">Receive immutable provenance certificate.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Social Proof -->
+<section class="bg-surface-container-low rounded-xl p-6 text-center border border-outline-variant/10">
+<span class="material-symbols-outlined text-secondary text-[32px] mb-2 opacity-80">security</span>
+<p class="font-mono-data text-mono-data text-on-surface-variant">
+                "Trusted by global newsrooms and forensic investigators."
+            </p>
+</section>
+</main>
+<!-- Footer -->
+<footer class="w-full py-10 bg-surface-container-lowest dark:bg-surface-container-lowest border-t border-outline-variant/10 flex flex-col items-center gap-4 px-margin-mobile text-center mt-[40px] pb-[100px]">
+<div class="font-headline-md text-headline-md text-primary">PeachCheck</div>
+<div class="flex gap-4">
+<a class="font-mono-data text-mono-data text-on-surface-variant hover:text-tertiary transition-colors opacity-80 hover:opacity-100" href="#">Privacy</a>
+<a class="font-mono-data text-mono-data text-on-surface-variant hover:text-tertiary transition-colors opacity-80 hover:opacity-100" href="#">Terms</a>
+<a class="font-mono-data text-mono-data text-on-surface-variant hover:text-tertiary transition-colors opacity-80 hover:opacity-100" href="#">API</a>
+<a class="font-mono-data text-mono-data text-on-surface-variant hover:text-tertiary transition-colors opacity-80 hover:opacity-100" href="#">Security</a>
+</div>
+<p class="font-mono-data text-mono-data text-tertiary dark:text-tertiary text-[12px] opacity-60">
+            © 2024 PeachCheck Forensic Systems. Secure Verification Protocol.
+        </p>
+</footer>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-full bg-surface-container/90 dark:bg-surface-container/90 backdrop-blur-xl border-t border-outline-variant/20 shadow-lg flex justify-around items-center h-16 px-margin-mobile">
+<button class="flex flex-col items-center justify-center text-primary bg-primary-container/20 rounded-full px-4 py-1 active:scale-90 transition-all duration-300">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">scan</span>
+<span class="font-label-caps text-[10px]">Detect</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant/50 active:scale-90 transition-all duration-300 px-2 py-1 rounded-lg">
+<span class="material-symbols-outlined mb-1">query_stats</span>
+<span class="font-label-caps text-[10px]">Forensics</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant/50 active:scale-90 transition-all duration-300 px-2 py-1 rounded-lg">
+<span class="material-symbols-outlined mb-1">verified_user</span>
+<span class="font-label-caps text-[10px]">Blockchain</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant/50 active:scale-90 transition-all duration-300 px-2 py-1 rounded-lg">
+<span class="material-symbols-outlined mb-1">history</span>
+<span class="font-label-caps text-[10px]">History</span>
+</button>
+</nav>
+</body></html>

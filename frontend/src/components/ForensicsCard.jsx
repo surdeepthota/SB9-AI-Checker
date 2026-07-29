@@ -15,7 +15,7 @@ export default function ForensicsCard({ forensics }) {
   const triggered = available.filter((s) => s.triggered);
 
   return (
-    <div className="glass-card layer-card">
+    <div className="premium-card layer-card">
       <div className="layer-head">
         <span className="layer-title">Image Analysis</span>
         <span className="chip probabilistic">probabilistic</span>
