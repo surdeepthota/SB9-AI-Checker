@@ -8,12 +8,12 @@ frames server-side so the existing image pipeline can analyze them unchanged.
 
 from __future__ import annotations
 
-import base64
 import os
 import re
 from dataclasses import dataclass
-from io import BytesIO
 from urllib.parse import urlparse
+
+from peachcheck.imaging import to_data_uri as _thumbnail_data_uri
 
 
 @dataclass
@@ -77,11 +77,6 @@ def _format_time(seconds: float) -> str:
     mins = whole // 60
     secs = whole % 60
     return f"{mins:02d}:{secs:02d}"
-
-
-def _png_data_url(png_bytes: bytes) -> str:
-    encoded = base64.b64encode(png_bytes).decode("ascii")
-    return f"data:image/png;base64,{encoded}"
 
 
 def _download_clip(url: str, temp_dir: str) -> tuple[str, dict]:
@@ -162,15 +157,20 @@ def _sample_frames_from_local_clip(
             image = Image.fromarray(array, mode="RGB")
             output_path = os.path.join(temp_dir, f"frame-{position + 1}.png")
             image.save(output_path, "PNG")
-            buf = BytesIO()
-            image.save(buf, "PNG")
+            # The full-resolution frame stays on disk at `output_path` for the forensics
+            # pipeline (which needs real pixel detail). The *preview* only needs to be
+            # recognizable in a UI thumbnail, so it goes through the same downscaling
+            # every other evidence image uses — an uncapped full-res preview per frame
+            # (easily 1MB+ for a vertical video) is what was blowing past the browser's
+            # sessionStorage quota and history.pushState size limit, silently dropping
+            # the clip report on any re-render that couldn't read location.state.
             frames.append(
                 SampledFrame(
                     frame_number=position + 1,
                     seconds=seconds,
                     label=_format_time(seconds),
                     image_path=output_path,
-                    preview_data_url=_png_data_url(buf.getvalue()),
+                    preview_data_url=_thumbnail_data_uri(image),
                 )
             )
             if len(frames) == usable_frame_count:
