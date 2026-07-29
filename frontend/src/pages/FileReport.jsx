@@ -1,19 +1,36 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Download, AlertTriangle } from 'lucide-react';
-
-function readStoredAnalysis() {
-  try {
-    const stored = sessionStorage.getItem('peachcheck:last-analysis');
-    return stored ? JSON.parse(stored) : null;
-  } catch {
-    return null;
-  }
-}
+import { loadReport } from '../lib/reportCache';
 
 export default function FileReport() {
-  const analysis = readStoredAnalysis();
+  const [analysis, setAnalysis] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadReport('last-analysis').then((value) => {
+      if (!cancelled) {
+        setAnalysis(value);
+        setLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const report = analysis?.trust_report;
+
+  if (loading) {
+    return (
+      <div className="grid-12">
+        <div className="col-8 col-start-3 card">
+          <p className="text-lo">Loading your last result…</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!report?.identity) {
     return (

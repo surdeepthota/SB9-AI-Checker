@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UploadCloud, ArrowRight } from 'lucide-react';
 import { analyzeClipUrl, analyzeFile } from '../api';
+import { saveReport } from '../lib/reportCache';
 
 export default function CheckMedia() {
   const navigate = useNavigate();
@@ -36,11 +37,7 @@ export default function CheckMedia() {
       timers.forEach(clearTimeout);
       setPipelineState(4);
 
-      try {
-        sessionStorage.setItem('peachcheck:last-analysis', JSON.stringify(analysis));
-      } catch {
-        // The navigation state below still carries the report if browser storage is full.
-      }
+      await saveReport('last-analysis', analysis);
 
       const reportId = analysis.trust_report?.identity?.sha256?.slice(0, 12) || 'analysis';
       navigate(`/report/${reportId}`, { state: { analysis } });
@@ -107,11 +104,7 @@ export default function CheckMedia() {
       timers.forEach(clearTimeout);
       setPipelineState(4);
 
-      try {
-        sessionStorage.setItem('peachcheck:last-clip-analysis', JSON.stringify(clip));
-      } catch {
-        // Navigation state still carries the result when the frame previews exceed storage quota.
-      }
+      await saveReport('last-clip-analysis', clip);
 
       navigate(`/report/clip-${Date.now()}`, { state: { clip } });
     } catch (error) {

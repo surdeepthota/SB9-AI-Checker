@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { Download } from 'lucide-react';
 import { ConfidenceBand, LayerRow } from '../components/Shared';
+import { loadReport } from '../lib/reportCache';
 
 const PROVENANCE_META = {
   valid_capture: ['valid', 'Source verified'],
@@ -32,24 +33,6 @@ const CHECK_LABELS = {
   visible_duration_ratio: 'Warning stays visible long enough',
   contrast_ratio: 'Warning is easy to read',
 };
-
-function readStoredAnalysis() {
-  try {
-    const stored = sessionStorage.getItem('peachcheck:last-analysis');
-    return stored ? JSON.parse(stored) : null;
-  } catch {
-    return null;
-  }
-}
-
-function readStoredClip() {
-  try {
-    const stored = sessionStorage.getItem('peachcheck:last-clip-analysis');
-    return stored ? JSON.parse(stored) : null;
-  } catch {
-    return null;
-  }
-}
 
 function formatSignalName(name) {
   return String(name || '').replaceAll('_', ' ');
@@ -147,10 +130,46 @@ function ClipTrustReport({ clip }) {
 export default function TrustReport() {
   const location = useLocation();
   const { id } = useParams();
-  const clip = location.state?.clip || (id?.startsWith('clip-') ? readStoredClip() : null);
+  const hasNavState = Boolean(location.state?.clip || location.state?.analysis);
+  const [cached, setCached] = useState(null);
+  const [loading, setLoading] = useState(!hasNavState);
+
+  useEffect(() => {
+    // Navigation state (set right after an analysis completes) is already in memory
+    // and always wins. It's only absent after a reload, in which case this pulls the
+    // same report back out of IndexedDB — the whole reason this cache exists.
+    if (hasNavState) {
+      setLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
+    const key = id?.startsWith('clip-') ? 'last-clip-analysis' : 'last-analysis';
+    loadReport(key).then((value) => {
+      if (!cancelled) {
+        setCached(value);
+        setLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, hasNavState]);
+
+  if (loading) {
+    return (
+      <div className="grid-12">
+        <div className="col-8 col-start-3 card">
+          <p className="text-lo">Loading your last result…</p>
+        </div>
+      </div>
+    );
+  }
+
+  const clip = location.state?.clip || (id?.startsWith('clip-') ? cached : null);
   if (clip?.reports) return <ClipTrustReport clip={clip} />;
 
-  const analysis = location.state?.analysis || readStoredAnalysis();
+  const analysis = location.state?.analysis || (!id?.startsWith('clip-') ? cached : null);
   const report = analysis?.trust_report;
 
   if (!report?.identity) {
