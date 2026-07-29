@@ -97,6 +97,21 @@ def test_analyze_clip_url_rejects_invalid_scheme():
     assert "http://" in response.json()["detail"]
 
 
+def test_analyze_clip_url_rejects_duplicated_scheme():
+    # Regression: "https://www.youtube.comhttps://www.youtube.com/watch?v=..." used to pass
+    # _require_http_url's check (urlparse still finds a scheme + non-empty netloc) and only
+    # fail deep inside yt-dlp with a cryptic DNS-resolution error naming a garbage host.
+    response = client.post(
+        "/analyze-clip-url",
+        json={
+            "url": "https://www.youtube.comhttps://www.youtube.com/watch?v=ed9obBPmg5o",
+            "is_campaign_ad": False,
+        },
+    )
+    assert response.status_code == 422
+    assert "extra" in response.json()["detail"]
+
+
 def test_clip_source_ai_disclosure_is_direct_evidence():
     from peachcheck.clip_analysis import find_ai_disclosure
 

@@ -57,6 +57,16 @@ def find_ai_disclosure(title: str | None, description: str | None) -> str | None
 
 
 def _require_http_url(url: str) -> None:
+    # A duplicated scheme (e.g. "https://www.youtube.comhttps://www.youtube.com/...",
+    # which happens when a URL gets pasted onto un-cleared field text) parses "successfully"
+    # under urlparse — it reports a non-empty scheme and netloc — but the netloc is garbage
+    # and the failure only surfaces later as a cryptic DNS error deep inside yt-dlp. Catch it
+    # here with an actionable message instead.
+    if url.count("://") > 1:
+        raise ValueError(
+            "That URL has an extra 'https://' in it — paste just the clip link on its own, "
+            "e.g. https://www.youtube.com/watch?v=..."
+        )
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError("Enter a valid http:// or https:// clip URL.")
