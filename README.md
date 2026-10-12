@@ -87,11 +87,25 @@ The first analysis of an "unknown provenance" file downloads the classifier weig
 (~350 MB, one-time) and the OCR model; subsequent runs are fast. Both degrade
 gracefully — if a model can't load, the report says so honestly instead of failing.
 
-### Docker (mirrors the Cloud Run deployment)
+### Docker (mirrors the production deployment)
 
 ```bash
 docker build -t peachcheck .
 docker run -p 8080:8080 peachcheck    # http://localhost:8080
+```
+
+### Production (Oracle Cloud Always Free)
+
+The public site runs on an Oracle Cloud Ampere VM: the same Docker image behind
+Caddy, which serves HTTPS with an automatic certificate on a free `sslip.io` name.
+Both containers restart on crash and on reboot.
+
+```bash
+# One-time: create the VM (retries until Oracle has free capacity; needs ~/.oci/config)
+python deploy/oracle/create_instance.py
+
+# Every update: copy the working tree to the VM, rebuild, restart
+deploy/oracle/deploy.sh <vm-public-ip>
 ```
 
 ### Tests

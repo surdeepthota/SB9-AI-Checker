@@ -5,3 +5,4 @@ venv/
 .venv/
 static/
 .pytest_cache/
+deploy/oracle/.env

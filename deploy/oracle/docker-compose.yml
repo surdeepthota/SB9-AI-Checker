@@ -1,0 +1,29 @@
+# Runs PeachCheck on an Oracle Cloud Always Free VM: the app container behind Caddy,
+# which terminates HTTPS with an automatic Let's Encrypt certificate for $SITE_DOMAIN.
+# `restart: always` plus Docker starting at boot keeps both up across crashes and reboots.
+services:
+  app:
+    build:
+      context: ../..
+    restart: always
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2
+    restart: always
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

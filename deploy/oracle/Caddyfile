@@ -1,0 +1,7 @@
+{$SITE_DOMAIN} {
+	# Matches the app's 25 MB upload cap with headroom for multipart overhead.
+	request_body {
+		max_size 30MB
+	}
+	reverse_proxy app:8080
+}
